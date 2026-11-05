@@ -15,6 +15,13 @@
       "when": 1793869753356,
       "tag": "0001_verify_schema_restore",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793869754356,
+      "tag": "0002_replay_newer_changes",
+      "breakpoints": true
     }
   ]
 }
