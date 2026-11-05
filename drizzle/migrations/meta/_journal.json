@@ -8,6 +8,13 @@
       "when": 1793871403780,
       "tag": "0000_add_missing_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793871410743,
+      "tag": "0001_noop_after_missing_tables",
+      "breakpoints": true
     }
   ]
 }
