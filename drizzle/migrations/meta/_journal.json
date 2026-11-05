@@ -1,5 +1,146 @@
 {
   "version": "7",
   "dialect": "postgresql",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1700000000000,
+      "tag": "0000_20250803172750_05ad598d-4f87-4e31-86f6-6a308543bde6",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1700000001000,
+      "tag": "0001_20250803172949_19fff9e9-0eb5-4e98-9ad7-e05fa5ae980b",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1700000002000,
+      "tag": "0002_20250803174512_b3536f91-1e33-4ece-9fc0-0e0b23fb9c8f",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1700000003000,
+      "tag": "0003_20250806060943_b1cdef62-0000-400b-8ade-766e8580f044",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1700000004000,
+      "tag": "0004_20250806063350_abd092b5-c569-4017-8a1d-660752a70754",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1700000005000,
+      "tag": "0005_20250806065733_13837dd0-bcac-4f49-a6b9-b1b92e32df56",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1700000006000,
+      "tag": "0006_20250806124049_c5a75bf2-c0e4-4b3f-a069-3586be13aed6",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1700000007000,
+      "tag": "0007_20250806124221_5c9277e4-262a-48c6-9faa-d54054bb2bf7",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1700000008000,
+      "tag": "0008_20250807092029_c28dd405-a887-4c3f-92f0-565162990249",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1700000009000,
+      "tag": "0009_20250807092615_cfe38708-5511-4f84-8347-61c03aca48fa",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1700000010000,
+      "tag": "0010_20250808093251_094e8a89-4c64-40ec-b93e-df575ab08eca",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1700000011000,
+      "tag": "0011_20250808095829_62bf0b82-9334-4ca7-9a24-bed59751ac77",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1700000012000,
+      "tag": "0012_20250808104105_bee3b7f0-c988-4adb-a7b8-823a936adfce",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1700000013000,
+      "tag": "0013_20250808104529_71032b19-7ffd-4ee6-96a6-a77823e17827",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1700000014000,
+      "tag": "0014_20250808111314_a2ddcce1-bddf-47a3-83e4-8c085026a642",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1700000015000,
+      "tag": "0015_20250808171721_ad71723e-8204-4492-9aa0-61ec575b1235",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1700000016000,
+      "tag": "0016_20250809135605_c5ec1495-6225-47aa-9517-d2b967f53902",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1700000017000,
+      "tag": "0017_20250810071204_1f18e6ac-128e-43a5-b677-0080c7cce5ca",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1700000018000,
+      "tag": "0018_20250810091239_0a089107-bd1a-482e-8a20-3efef30b9388",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1700000019000,
+      "tag": "0019_20250810100452_7281a492-1baf-452a-897e-e3d737a51a26",
+      "breakpoints": true
+    }
+  ]
 }
