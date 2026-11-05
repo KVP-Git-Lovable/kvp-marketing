@@ -50,6 +50,13 @@
       "when": 1793870222353,
       "tag": "0006_marketing_module",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793870480079,
+      "tag": "0007_verify_marketing_module",
+      "breakpoints": true
     }
   ]
 }
