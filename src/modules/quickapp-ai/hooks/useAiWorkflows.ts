@@ -117,5 +117,6 @@ export async function runSimulation(agentKey: string) {
   });
   const body = await res.json().catch(() => null);
   if (!res.ok) throw new Error(body?.error ?? `Simulation failed (${res.status})`);
+  if (body?.kind === "unavailable") throw new Error(body?.error ?? "This agent is not set up yet");
   return body;
 }

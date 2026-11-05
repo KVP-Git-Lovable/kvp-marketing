@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from "@/integrations/supabase/db";
 
 const SESSION_KEY = 'activity_session_id';
 const HEARTBEAT_KEY = 'activity_heartbeat';

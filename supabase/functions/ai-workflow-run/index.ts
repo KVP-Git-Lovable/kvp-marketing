@@ -1151,12 +1151,21 @@ Deno.serve(async (req) => {
       return jsonError(400, "unsupported_agent", "This agent cannot be simulated yet");
     }
 
-    const { data: agent } = await supabase
+    const { data: agent, error: agentError } = await supabase
       .from("ai_agents")
       .select("id, key, name")
       .eq("key", agentKey)
       .maybeSingle();
-    if (!agent) return jsonError(404, "agent_not_found", "Agent not found");
+    if (!agent) {
+      // Agent not configured (or its table is missing in this environment).
+      // Background insight cards call this on page load, so answer with a
+      // non-error "unavailable" result they ignore instead of a 404.
+      if (agentError) console.warn("[ai-workflow-run] agent lookup failed:", agentError.message);
+      return new Response(
+        JSON.stringify({ kind: "unavailable", code: "agent_not_found", error: "Agent not found" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     const { data: execRow, error: execError } = await supabase
       .from("workflow_executions")
