@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabaseLoose';
 import { offlineStorage, STORES } from '@/lib/offlineStorage';
 
 /**

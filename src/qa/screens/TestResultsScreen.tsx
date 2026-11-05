@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useQAMode } from '@/contexts/QAModeContext';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabaseLoose';
 import { table } from '@/lib/tableRouter';
 import {
   type QARunRow,
@@ -76,7 +76,7 @@ export const TestResultsScreen = () => {
 
   const loadCustom = useCallback(async () => {
     const { data } = await supabase
-      .from(table('qa_custom_tests') as any)
+      .from((table as any)('qa_custom_tests'))
       .select('*')
       .order('created_at', { ascending: false })
       .limit(20);
