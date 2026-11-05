@@ -50,7 +50,7 @@ export default function WhatsAppTemplateDetails({ templateId, onBack }: { templa
       body: JSON.stringify(payload),
     });
     const json = await response.json();
-    if (!response.ok) throw new Error(json.error || "Request failed");
+    if (!response.ok || json?.success === false) throw new Error(json.error || "Request failed");
     return json;
   };
 
