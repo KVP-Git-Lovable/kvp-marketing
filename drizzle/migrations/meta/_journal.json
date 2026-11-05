@@ -36,6 +36,13 @@
       "when": 1793870058589,
       "tag": "0004_replay_retry",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793870221353,
+      "tag": "0005_verify_replay_retry",
+      "breakpoints": true
     }
   ]
 }
