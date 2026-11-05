@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { offlineStorage, STORES } from '@/lib/offlineStorage';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from "@/integrations/supabase/db";
 import { useConnectivity } from './useConnectivity';
 import { toast } from './use-toast';
 import { isSlowConnection } from '@/utils/internetSpeedCheck';

@@ -11,7 +11,7 @@
  * RPC isn't available and reverts on failure by re-querying the prior state.
  */
 import * as XLSX from 'xlsx';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from "@/integrations/supabase/db";
 import { cleanHeader, IMPORT_HEADERS } from './productImportTemplate';
 
 export type ParsedRow = Record<string, string | number | null | undefined>;

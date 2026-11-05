@@ -9,7 +9,7 @@
  * build a RetailerContext without an extra round-trip.
  */
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from "@/integrations/supabase/db";
 import { fetchAllPaginated } from '@/utils/fetchAllPaginated';
 import type {
   AvailabilityRow,
