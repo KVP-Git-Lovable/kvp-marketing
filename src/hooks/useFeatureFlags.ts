@@ -89,6 +89,34 @@ export const NAV_ITEM_MODULE_NAME: Record<string, string> = {
   'communication-center': 'communication_center',
 };
 
+/**
+ * Maps navigation item IDs to the `module_*` row shown in Security & Access →
+ * Module Permission. When a profile has that row, it alone decides whether the
+ * menu is visible. Items without a module row keep the legacy checks.
+ */
+export const NAV_ITEM_MODULE_ROW: Record<string, string> = {
+  'attendance': 'module_attendance',
+  'my-visit': 'module_my_visit',
+  'all-retailers': 'module_all_retailers',
+  'my-target': 'module_my_target',
+  'performance': 'module_performance',
+  'analytics': 'module_analytics',
+  'distributor-master': 'module_distributor_master',
+  'primary-orders': 'module_primary_orders',
+  'territories': 'module_territories',
+  'gps-track': 'module_gps_track',
+  'my-beats': 'module_my_beats',
+  'competition-master': 'module_competition_master',
+  'schemes': 'module_check_schemes',
+  'expenses': 'module_my_expenses',
+  'leaderboard': 'module_gamification',
+  'packing-list': 'module_packing_list',
+  'my-deliveries': 'module_my_deliveries',
+  'my-competency': 'module_competency',
+  'recycle-bin': 'module_recycle_bin',
+  'communication-center': 'module_communication_center',
+};
+
 const FEATURE_FLAGS_CACHE_KEY = 'feature_flags_cache';
 
 interface FeatureFlag {
@@ -217,6 +245,15 @@ export const useFeatureFlags = () => {
     // Step 4: Loaded but confirmed zero permissions → deny all
     if (!isLoading && permissions.length === 0) return false;
 
+    // Step 5-: If the profile has this menu's Module Permission row, it decides.
+    // Legacy feature rows (e.g. attendance_check_in_out) must not keep a menu
+    // open once the module is unticked in Security & Access.
+    const moduleRowName = NAV_ITEM_MODULE_ROW[navItemId];
+    if (moduleRowName) {
+      const moduleRow = permissions.find(p => p.object_name === moduleRowName);
+      if (moduleRow) return !!moduleRow.can_read;
+    }
+
     // Step 5a: Check legacy permission prefix (e.g., attendance_list, visit_retailer)
     const prefix = NAV_ITEM_PERMISSION_PREFIX[navItemId];
     if (prefix && hasPermissionForPrefix(prefix)) return true;
@@ -229,7 +266,7 @@ export const useFeatureFlags = () => {
     if (!prefix && !moduleName) return true;
 
     return false;
-  }, [isFeatureEnabled, securityProfileName, permissions.length, isLoading, hasPermissionForPrefix, hasHierarchicalPermission]);
+  }, [isFeatureEnabled, securityProfileName, permissions, isLoading, hasPermissionForPrefix, hasHierarchicalPermission]);
 
   return {
     featureFlags,
