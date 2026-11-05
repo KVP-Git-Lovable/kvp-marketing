@@ -94,7 +94,7 @@ const SyncHealth = () => {
       const failedRows = (failRes.data ?? []) as FailedRow[];
       const userIds = Array.from(new Set(failedRows.map(r => r.user_id).filter(Boolean))) as string[];
       if (userIds.length) {
-        const { data: profs } = await supabase
+        const { data: profs } = await (supabase as any)
           .from('profiles')
           .select('user_id, full_name')
           .in('user_id', userIds);
