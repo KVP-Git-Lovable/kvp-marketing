@@ -630,7 +630,11 @@ serve(async (req) => {
         });
 
         if (!sendResp.ok) {
-          return new Response(JSON.stringify({ error: sendData?.message || `Twilio error ${sendResp.status}` }), {
+          const code = Number(sendData?.code);
+          const friendly = (code === 21212 || code === 63007 || code === 21606)
+            ? `The sending number ${fromNumber} is not set up as a WhatsApp sender on your Twilio account. Register it in Twilio (Messaging → Senders → WhatsApp senders) or update the TWILIO_WHATSAPP_NUMBER secret to an approved WhatsApp sender.`
+            : (sendData?.message || `Twilio error ${sendResp.status}`);
+          return new Response(JSON.stringify({ error: friendly, code: sendData?.code }), {
             status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
