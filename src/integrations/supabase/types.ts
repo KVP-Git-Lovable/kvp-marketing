@@ -12283,6 +12283,18 @@ export type Database = {
           },
         ]
       }
+      journey_cron_token: {
+        Row: {
+          token: string
+        }
+        Insert: {
+          token: string
+        }
+        Update: {
+          token?: string
+        }
+        Relationships: []
+      }
       journey_enrollments: {
         Row: {
           current_node_id: string | null
@@ -12604,15 +12616,20 @@ export type Database = {
           approval_status: string
           approved_at: string | null
           approved_by: string | null
+          budget_cap: number | null
           canvas_data: Json
           created_at: string
           created_by: string | null
           deleted_at: string | null
           deleted_by: string | null
+          description: string | null
+          end_date: string | null
           filters: Json
           id: string
           name: string
+          objective: string | null
           segment_type: string
+          start_date: string | null
           status: string
           updated_at: string
         }
@@ -12621,15 +12638,20 @@ export type Database = {
           approval_status?: string
           approved_at?: string | null
           approved_by?: string | null
+          budget_cap?: number | null
           canvas_data?: Json
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          description?: string | null
+          end_date?: string | null
           filters?: Json
           id?: string
           name: string
+          objective?: string | null
           segment_type?: string
+          start_date?: string | null
           status?: string
           updated_at?: string
         }
@@ -12638,15 +12660,20 @@ export type Database = {
           approval_status?: string
           approved_at?: string | null
           approved_by?: string | null
+          budget_cap?: number | null
           canvas_data?: Json
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          description?: string | null
+          end_date?: string | null
           filters?: Json
           id?: string
           name?: string
+          objective?: string | null
           segment_type?: string
+          start_date?: string | null
           status?: string
           updated_at?: string
         }
@@ -13463,7 +13490,22 @@ export type Database = {
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "marketing_journey_enrollments_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_journey_enrollments_journey_id_fkey"
+            columns: ["journey_id"]
+            isOneToOne: false
+            referencedRelation: "journeys"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       marketing_journey_excluded_contacts: {
         Row: {
@@ -13487,7 +13529,22 @@ export type Database = {
           journey_id?: string
           reason?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "marketing_journey_excluded_contacts_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_journey_excluded_contacts_journey_id_fkey"
+            columns: ["journey_id"]
+            isOneToOne: false
+            referencedRelation: "journeys"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       marketing_leads_activity_log: {
         Row: {
