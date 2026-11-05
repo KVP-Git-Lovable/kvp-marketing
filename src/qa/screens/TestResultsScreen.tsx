@@ -76,7 +76,7 @@ export const TestResultsScreen = () => {
 
   const loadCustom = useCallback(async () => {
     const { data } = await supabase
-      .from(table('qa_custom_tests') as any)
+      .from('qa_custom_tests' as any)
       .select('*')
       .order('created_at', { ascending: false })
       .limit(20);
