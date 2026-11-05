@@ -630,8 +630,13 @@ serve(async (req) => {
         });
 
         if (!sendResp.ok) {
-          return new Response(JSON.stringify({ error: sendData?.message || `Twilio error ${sendResp.status}` }), {
-            status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          const code = Number(sendData?.code);
+          const friendly = (code === 21212 || code === 63007 || code === 21606)
+            ? `The sending number ${fromNumber} is not set up as a WhatsApp sender on your Twilio account. Register it in Twilio (Messaging → Senders → WhatsApp senders) or update the TWILIO_WHATSAPP_NUMBER secret to an approved WhatsApp sender.`
+            : (sendData?.message || `Twilio error ${sendResp.status}`);
+          // 200 with success:false: Twilio rejections are expected config issues, not server crashes.
+          return new Response(JSON.stringify({ success: false, error: friendly, code: sendData?.code }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
         return new Response(JSON.stringify({ success: true, sid: sendData.sid }), {
