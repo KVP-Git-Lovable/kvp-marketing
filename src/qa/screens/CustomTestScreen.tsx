@@ -60,7 +60,7 @@ export const CustomTestScreen = () => {
     if (!userId) return;
 
     const { data } = await supabase
-      .from('qa_custom_tests' as any)
+      .from((table as any)('qa_custom_tests'))
       .select('*')
       .eq('created_by', userId)
       .order('created_at', { ascending: false })
@@ -85,7 +85,7 @@ export const CustomTestScreen = () => {
       const userId = userRes?.user?.id ?? null;
 
       const { data: inserted, error: insErr } = await supabase
-        .from('qa_custom_tests' as any)
+        .from((table as any)('qa_custom_tests'))
         .insert({
           prompt: prompt.trim(),
           page_context: pageContext.trim() || null,
