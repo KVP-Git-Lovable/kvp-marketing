@@ -54,7 +54,7 @@ type CtaButton = { type: "URL" | "PHONE_NUMBER"; title: string; url: string; pho
 
 const emptyCta = (): CtaButton => ({ type: "URL", title: "", url: "", phone: "" });
 
-const TEMPLATE_PREFIX = "bb_";
+const TEMPLATE_PREFIX = "kvp_";
 
 const initialForm = {
   name: "",
@@ -226,7 +226,7 @@ export default function WhatsAppTemplatesPanel() {
   });
 
   const filteredTemplates = templates.filter((t) => {
-    if (!/^bb_/i.test(t.name)) return false;
+    if (!/^kvp_/i.test(t.name)) return false;
     if (!showAll && t.created_by !== user?.id) return false;
     if (filterStatus !== "all" && t.status !== filterStatus) return false;
     if (filterCategory !== "all" && t.category !== filterCategory) return false;
@@ -314,7 +314,7 @@ export default function WhatsAppTemplatesPanel() {
       }
     }
 
-    const baseName = (tpl.name || "template").replace(/^bb_/, "").replace(/_copy(_\d+)?$/, "");
+    const baseName = (tpl.name || "template").replace(/^kvp_/, "").replace(/_copy(_\d+)?$/, "");
     let candidate = `${baseName}_copy`;
     const existingNames = new Set(templates.map((t) => t.name));
     let n = 2;

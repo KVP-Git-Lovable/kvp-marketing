@@ -100,7 +100,7 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
   const { data: templates = [] } = useQuery({
     queryKey: ["whatsapp-templates-for-journeys"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("whatsapp_templates").select("id, name, body").eq("status", "approved").ilike("name", "bb_%").order("name");
+      const { data, error } = await supabase.from("whatsapp_templates").select("id, name, body").eq("status", "approved").ilike("name", "kvp_%").order("name");
       if (error) throw error;
       return data as WhatsAppTemplate[];
     },
