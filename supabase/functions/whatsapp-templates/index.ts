@@ -196,7 +196,7 @@ serve(async (req) => {
         if (!resp.ok) {
           const errText = await resp.text();
           console.error('Twilio Content API list error:', errText);
-          return new Response(JSON.stringify({ error: `Twilio API error: ${resp.status}` }), {
+          return new Response(JSON.stringify({ error: resp.status === 401 ? 'Twilio sign-in failed: the saved Twilio Account SID or Auth Token is wrong. Update them in the project secrets.' : `Twilio API error: ${resp.status}` }), {
             status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
