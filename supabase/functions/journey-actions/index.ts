@@ -1,6 +1,42 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
+const JOURNEY_OBJECTIVES = new Set(['lead_generation', 'engagement', 'awareness', 'conversion', 're_engagement', 'event_promotion']);
+
+// Optional "campaign" fields on a journey. Blank/undefined means "leave as is" on
+// update and NULL on create. Objective is accepted on create only (immutable after).
+function parseCampaignFields(body: Record<string, unknown>, allowObjective: boolean): { fields: Record<string, unknown>; error?: string } {
+  const fields: Record<string, unknown> = {};
+  const blank = (v: unknown) => v === null || v === '';
+  if (allowObjective && body.objective !== undefined) {
+    if (blank(body.objective)) fields.objective = null;
+    else if (typeof body.objective === 'string' && JOURNEY_OBJECTIVES.has(body.objective)) fields.objective = body.objective;
+    else return { fields, error: 'Invalid objective' };
+  }
+  for (const key of ['start_date', 'end_date'] as const) {
+    if (body[key] === undefined) continue;
+    if (blank(body[key])) { fields[key] = null; continue; }
+    const d = new Date(String(body[key]));
+    if (Number.isNaN(d.getTime())) return { fields, error: `Invalid ${key}` };
+    fields[key] = d.toISOString();
+  }
+  if (body.budget_cap !== undefined) {
+    if (blank(body.budget_cap)) fields.budget_cap = null;
+    else {
+      const n = Number(body.budget_cap);
+      if (!Number.isFinite(n) || n < 0) return { fields, error: 'budget_cap must be a number >= 0' };
+      fields.budget_cap = n;
+    }
+  }
+  if (body.description !== undefined) {
+    fields.description = blank(body.description) ? null : String(body.description).slice(0, 2000);
+  }
+  if (fields.start_date && fields.end_date && new Date(String(fields.end_date)) <= new Date(String(fields.start_date))) {
+    return { fields, error: 'end_date must be after start_date' };
+  }
+  return { fields };
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -212,7 +248,14 @@ serve(async (req) => {
         }
         const canvas_data = hasGraph ? { nodes, edges: edges || [] } : { steps };
         const isMarketing = MARKETING_SEGMENT_TYPES.has(segment_type);
+        const campaign = parseCampaignFields(body, true);
+        if (campaign.error) {
+          return new Response(JSON.stringify({ error: campaign.error }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
         const { data, error } = await supabase.from('journeys').insert({
+          ...campaign.fields,
           name,
           segment_type: isMarketing ? segment_type : 'retailers',
           filters: isMarketing ? { list_view_id } : (hasGraph ? entryAudienceFilter(nodes) : (filters || {})),
@@ -241,7 +284,13 @@ serve(async (req) => {
           effectiveSegmentType = existingJourney?.segment_type;
         }
         const isMarketing = MARKETING_SEGMENT_TYPES.has(effectiveSegmentType);
-        const updates: Record<string, unknown> = {};
+        const campaign = parseCampaignFields(body, false);
+        if (campaign.error) {
+          return new Response(JSON.stringify({ error: campaign.error }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const updates: Record<string, unknown> = { ...campaign.fields };
         if (name !== undefined) updates.name = name;
         if (segment_type !== undefined) updates.segment_type = isMarketing ? segment_type : 'retailers';
         if (isMarketing) {

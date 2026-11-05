@@ -28,6 +28,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import JourneyCanvas, { defaultScaffold } from "./journey/JourneyCanvas";
 import { EditJourneyDetailsDialog } from "@/components/journey/EditJourneyDetailsDialog";
+import { Textarea } from "@/components/ui/textarea";
+import { JOURNEY_OBJECTIVES, objectiveLabel, fromDateTimeLocal, isInvalidWindow } from "@/lib/journeyCampaign";
 import { DeletedJourneysDialog } from "@/components/journey/DeletedJourneysDialog";
 
 interface Journey {
@@ -42,6 +44,11 @@ interface Journey {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  objective?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  budget_cap?: number | null;
+  description?: string | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -76,6 +83,11 @@ export default function JourneyBuilderTab() {
   const [name, setName] = useState("");
   const [segmentType, setSegmentType] = useState<string>("marketing_institutional");
   const [listViewId, setListViewId] = useState<string>("");
+  const [objective, setObjective] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [budgetCap, setBudgetCap] = useState<string>("");
+  const [description, setDescription] = useState<string>("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [initialTab, setInitialTab] = useState<string>("canvas");
   const [deleteTargetId, setDeleteTargetId] = useState<string | string[] | null>(null);
@@ -224,6 +236,11 @@ export default function JourneyBuilderTab() {
         edges: scaffold.edges,
         segment_type: segmentType,
         list_view_id: listViewId,
+        objective: objective || undefined,
+        start_date: fromDateTimeLocal(startDate) ?? undefined,
+        end_date: fromDateTimeLocal(endDate) ?? undefined,
+        budget_cap: budgetCap.trim() === "" ? undefined : Number(budgetCap),
+        description: description.trim() || undefined,
       });
     },
     onSuccess: (data) => {
@@ -232,6 +249,11 @@ export default function JourneyBuilderTab() {
       setName("");
       setSegmentType("marketing_institutional");
       setListViewId("");
+      setObjective("");
+      setStartDate("");
+      setEndDate("");
+      setBudgetCap("");
+      setDescription("");
       toast.success("Journey created as draft");
       setInitialTab("canvas");
       setEditingId(data.id);
@@ -325,7 +347,7 @@ export default function JourneyBuilderTab() {
           </Button>
           <Button size="sm" onClick={() => setShowCreate(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            New Journey
+            New Journey Campaign
           </Button>
         </div>
       </div>
@@ -469,7 +491,13 @@ export default function JourneyBuilderTab() {
                               <CalendarIcon className="h-3 w-3" /> {frequencyLabel[j.schedule_type] || j.schedule_type}
                             </Badge>
                           )}
+                          {objectiveLabel(j.objective) && <Badge variant="secondary">{objectiveLabel(j.objective)}</Badge>}
                         </div>
+                        {(j.start_date || j.end_date) && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {j.start_date ? format(new Date(j.start_date), "MMM d") : "…"} – {j.end_date ? format(new Date(j.end_date), "MMM d") : "…"}
+                          </p>
+                        )}
                       </TableCell>
                       <TableCell>
                         {category_ && category_ !== "any" ? (
@@ -527,12 +555,47 @@ export default function JourneyBuilderTab() {
       </Card>
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>New Journey</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>New Journey Campaign</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div>
               <Label>Journey Name</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. New Season Offer" />
+            </div>
+            <div className="space-y-3 rounded-lg border p-3">
+              <Label className="text-sm font-medium">Campaign Details <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
+              <div>
+                <Label className="text-xs text-muted-foreground">Objective</Label>
+                <Select value={objective} onValueChange={setObjective}>
+                  <SelectTrigger><SelectValue placeholder="Select an objective" /></SelectTrigger>
+                  <SelectContent>
+                    {JOURNEY_OBJECTIVES.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Start Date</Label>
+                  <Input type="datetime-local" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">End Date</Label>
+                  <Input type="datetime-local" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                </div>
+              </div>
+              {isInvalidWindow(startDate, endDate) && (
+                <p className="text-xs text-destructive">End date must be after the start date.</p>
+              )}
+              <div>
+                <Label className="text-xs text-muted-foreground">Budget Cap (₹)</Label>
+                <Input type="number" min="0" step="any" value={budgetCap} onChange={(e) => setBudgetCap(e.target.value)} placeholder="No cap" />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Description</Label>
+                <Textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What is this campaign for?" />
+              </div>
             </div>
             <div className="space-y-3 rounded-lg border p-3">
               <Label className="text-sm font-medium">Target Audience — Retailer View</Label>
@@ -579,7 +642,7 @@ export default function JourneyBuilderTab() {
             <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
             <Button
               onClick={() => createMutation.mutate()}
-              disabled={!name.trim() || !listViewId || createMutation.isPending}
+              disabled={!name.trim() || !listViewId || isInvalidWindow(startDate, endDate) || (budgetCap.trim() !== "" && Number(budgetCap) < 0) || createMutation.isPending}
             >
               {createMutation.isPending ? "Creating..." : "Create & Open Canvas"}
             </Button>
@@ -596,6 +659,11 @@ export default function JourneyBuilderTab() {
           currentListViewId={editDetailsTarget.filters?.list_view_id || ""}
           currentCategory={editDetailsTarget.filters?.category || "any"}
           currentName={editDetailsTarget.name}
+          currentObjective={editDetailsTarget.objective}
+          currentStartDate={editDetailsTarget.start_date}
+          currentEndDate={editDetailsTarget.end_date}
+          currentBudgetCap={editDetailsTarget.budget_cap}
+          currentDescription={editDetailsTarget.description}
         />
       )}
 

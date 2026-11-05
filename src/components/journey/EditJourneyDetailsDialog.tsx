@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { objectiveLabel, toDateTimeLocal, fromDateTimeLocal, isInvalidWindow } from "@/lib/journeyCampaign";
 
 const MARKETING_SEGMENT_TYPES = new Set(["marketing_institutional", "marketing_distributor"]);
 
@@ -23,16 +25,27 @@ interface Props {
   currentSegmentType: string;
   currentListViewId: string;
   currentCategory: string;
+  // Campaign fields (optional; objective is read-only after creation).
+  currentObjective?: string | null;
+  currentStartDate?: string | null;
+  currentEndDate?: string | null;
+  currentBudgetCap?: number | null;
+  currentDescription?: string | null;
 }
 
 export function EditJourneyDetailsDialog({
   open, onOpenChange, journeyId, currentName, currentSegmentType, currentListViewId, currentCategory,
+  currentObjective, currentStartDate, currentEndDate, currentBudgetCap, currentDescription,
 }: Props) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [category, setCategory] = useState("any");
   const [segmentType, setSegmentType] = useState<string>("marketing_institutional");
   const [listViewId, setListViewId] = useState<string>("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [budgetCap, setBudgetCap] = useState("");
+  const [description, setDescription] = useState("");
 
   const isMarketingJourney = MARKETING_SEGMENT_TYPES.has(currentSegmentType);
 
@@ -42,7 +55,11 @@ export function EditJourneyDetailsDialog({
     setCategory(currentCategory || "any");
     setSegmentType(MARKETING_SEGMENT_TYPES.has(currentSegmentType) ? currentSegmentType : "marketing_institutional");
     setListViewId(currentListViewId || "");
-  }, [open, currentName, currentCategory, currentSegmentType, currentListViewId]);
+    setStartDate(toDateTimeLocal(currentStartDate));
+    setEndDate(toDateTimeLocal(currentEndDate));
+    setBudgetCap(currentBudgetCap == null ? "" : String(currentBudgetCap));
+    setDescription(currentDescription || "");
+  }, [open, currentName, currentCategory, currentSegmentType, currentListViewId, currentStartDate, currentEndDate, currentBudgetCap, currentDescription]);
 
   const { data: marketingListViews = [] } = useQuery({
     queryKey: ["marketing-list-views", segmentType],
@@ -74,11 +91,18 @@ export function EditJourneyDetailsDialog({
     enabled: open && isMarketingJourney && !!listViewId,
   });
 
+  const campaignFields = () => ({
+    start_date: fromDateTimeLocal(startDate),
+    end_date: fromDateTimeLocal(endDate),
+    budget_cap: budgetCap.trim() === "" ? null : Number(budgetCap),
+    description: description.trim() || null,
+  });
+
   const saveMutation = useMutation({
     mutationFn: () => invoke(
       isMarketingJourney
-        ? { action: "update", journey_id: journeyId, name, segment_type: segmentType, list_view_id: listViewId }
-        : { action: "update", journey_id: journeyId, name, filters: category === "any" ? {} : { category } }
+        ? { action: "update", journey_id: journeyId, name, segment_type: segmentType, list_view_id: listViewId, ...campaignFields() }
+        : { action: "update", journey_id: journeyId, name, filters: category === "any" ? {} : { category }, ...campaignFields() }
     ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["journeys"] });
@@ -91,12 +115,42 @@ export function EditJourneyDetailsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Edit Journey</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div>
             <Label>Name</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Journey name" />
+          </div>
+
+          <div className="space-y-3 rounded-lg border p-3">
+            <Label className="text-sm font-medium">Campaign Details</Label>
+            <div>
+              <Label className="text-xs text-muted-foreground">Objective</Label>
+              <Input value={objectiveLabel(currentObjective) || "Not set"} disabled readOnly />
+              <p className="text-xs text-muted-foreground mt-1">The objective can't be changed after the campaign is created.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">Start Date</Label>
+                <Input type="datetime-local" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">End Date</Label>
+                <Input type="datetime-local" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              </div>
+            </div>
+            {isInvalidWindow(startDate, endDate) && (
+              <p className="text-xs text-destructive">End date must be after the start date.</p>
+            )}
+            <div>
+              <Label className="text-xs text-muted-foreground">Budget Cap (₹)</Label>
+              <Input type="number" min="0" step="any" value={budgetCap} onChange={(e) => setBudgetCap(e.target.value)} placeholder="No cap" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Description</Label>
+              <Textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
+            </div>
           </div>
 
           {isMarketingJourney ? (
@@ -158,7 +212,7 @@ export function EditJourneyDetailsDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
             onClick={() => saveMutation.mutate()}
-            disabled={!name.trim() || saveMutation.isPending || (isMarketingJourney && !listViewId)}
+            disabled={!name.trim() || saveMutation.isPending || (isMarketingJourney && !listViewId) || isInvalidWindow(startDate, endDate) || (budgetCap.trim() !== "" && Number(budgetCap) < 0)}
           >
             {saveMutation.isPending ? "Saving..." : "Save Changes"}
           </Button>

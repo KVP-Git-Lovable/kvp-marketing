@@ -33,6 +33,11 @@ interface JourneyDetail {
   canvas_data: { nodes?: Node[]; edges?: Edge[]; steps?: unknown[] };
   approval_status: string;
   approval_notes: string | null;
+  objective?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  budget_cap?: number | null;
+  description?: string | null;
   schedule: { id: string; schedule_type: string; start_at: string; recurrence_rule: string | null; next_run_at: string | null } | null;
   excluded_contacts: Array<{ id: string; retailer_id: string; reason: string | null; excluded_at: string; retailers: { name: string; phone: string } | null }>;
   cost_settings: { whatsapp_cost_per_message: number } | null;
@@ -395,6 +400,11 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
           currentSegmentType={journey.segment_type || "retailers"}
           currentListViewId={journey.filters?.list_view_id || ""}
           currentCategory={journey.filters?.category || "any"}
+          currentObjective={journey.objective}
+          currentStartDate={journey.start_date}
+          currentEndDate={journey.end_date}
+          currentBudgetCap={journey.budget_cap}
+          currentDescription={journey.description}
         />
       )}
       {isMarketingJourney && listViewId && (
