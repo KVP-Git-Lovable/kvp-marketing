@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft, Users, MessageCircleMore, Clock, GitBranch, MessageCircle, Tag, LogOut,
-  Save, Play, Pause, BarChart3, Pencil, Megaphone,
+  Save, Play, Pause, BarChart3, Pencil, Megaphone, Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { journeyNodeTypes } from "@/components/journey/JourneyNodes";
@@ -225,7 +225,19 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["journeys"] });
       queryClient.invalidateQueries({ queryKey: ["journey-detail", journeyId] });
-      toast.success(`Journey published — ${data.newly_enrolled} retailer(s) enrolled`);
+      toast.success(data.scheduled && data.start_date
+        ? `Campaign scheduled to start ${new Date(data.start_date).toLocaleString()}`
+        : `Journey published — ${data.newly_enrolled} retailer(s) enrolled`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const revertToDraftMutation = useMutation({
+    mutationFn: () => invoke({ action: "revert-to-draft", journey_id: journeyId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["journeys"] });
+      queryClient.invalidateQueries({ queryKey: ["journey-detail", journeyId] });
+      toast.success("Campaign moved back to draft");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -295,9 +307,15 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
             <Button size="sm" variant="secondary" onClick={() => pauseMutation.mutate()} disabled={pauseMutation.isPending}>
               <Pause className="h-4 w-4 mr-1.5" /> Pause
             </Button>
+          ) : journey?.status === "scheduled" ? (
+            <Button size="sm" variant="secondary" onClick={() => revertToDraftMutation.mutate()} disabled={revertToDraftMutation.isPending}>
+              <Undo2 className="h-4 w-4 mr-1.5" /> Scheduled — back to draft
+            </Button>
           ) : (
             <Button size="sm" onClick={() => publishMutation.mutate()} disabled={publishMutation.isPending}>
-              <Play className="h-4 w-4 mr-1.5" /> {journey?.status === "paused" ? "Resume" : "Activate"}
+              {journey?.start_date && new Date(journey.start_date).getTime() > Date.now()
+                ? <Clock className="h-4 w-4 mr-1.5" />
+                : <Play className="h-4 w-4 mr-1.5" />} {journey?.start_date && new Date(journey.start_date).getTime() > Date.now() ? "Schedule" : journey?.status === "paused" ? "Resume" : "Activate"}
             </Button>
           )}
         </div>

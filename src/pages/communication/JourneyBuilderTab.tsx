@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Plus, Play, Pause, Trash2, Workflow, RefreshCw, Pencil, Send, CalendarIcon, BarChart3, X, History,
+  Plus, Play, Pause, Trash2, Workflow, RefreshCw, Pencil, Send, CalendarIcon, BarChart3, X, History, Clock, Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -53,6 +53,7 @@ interface Journey {
 
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
+  scheduled: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
   active: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   paused: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
   completed: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -197,6 +198,7 @@ export default function JourneyBuilderTab() {
       if (statusFilter !== "all") {
         const matches =
           statusFilter === "draft" ? j.status === "draft" :
+          statusFilter === "scheduled" ? j.status === "scheduled" :
           statusFilter === "active" ? j.status === "active" :
           statusFilter === "paused" ? j.status === "paused" :
           statusFilter === "pending" ? j.approval_status === "pending" :
@@ -265,7 +267,18 @@ export default function JourneyBuilderTab() {
     mutationFn: (journey_id: string) => invoke({ action: "publish", journey_id }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["journeys"] });
-      toast.success(`Journey published — ${data.newly_enrolled} retailer(s) enrolled`);
+      toast.success(data.scheduled && data.start_date
+        ? `Campaign scheduled to start ${format(new Date(data.start_date), "MMM d, h:mm a")}`
+        : `Journey published — ${data.newly_enrolled} retailer(s) enrolled`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const revertToDraftMutation = useMutation({
+    mutationFn: (journey_id: string) => invoke({ action: "revert-to-draft", journey_id }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["journeys"] });
+      toast.success("Campaign moved back to draft");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -364,6 +377,7 @@ export default function JourneyBuilderTab() {
                   <SelectItem value="draft">Draft</SelectItem>
                   <SelectItem value="pending">Pending Approval</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="paused">Paused</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
@@ -482,7 +496,9 @@ export default function JourneyBuilderTab() {
                       <TableCell className="font-medium">{j.name}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1 flex-wrap">
-                          <Badge className={statusColors[j.status] || statusColors.draft}>{j.status}</Badge>
+                          <Badge className={statusColors[j.status] || statusColors.draft}>
+                            {j.status === "scheduled" && j.start_date ? `Starts ${format(new Date(j.start_date), "MMM d, h:mm a")}` : j.status}
+                          </Badge>
                           {showApprovalBadge && (
                             <Badge className={approvalBadgeClass[approval!] || ""}>{approvalLabel[approval!] || approval}</Badge>
                           )}
@@ -519,8 +535,19 @@ export default function JourneyBuilderTab() {
                             <Pencil className="h-4 w-4" />
                           </Button>
                           {(j.status === "draft" || j.status === "paused") && (
-                            <Button variant="ghost" size="icon" onClick={() => publishMutation.mutate(j.id)} title="Publish">
-                              <Play className="h-4 w-4" />
+                            j.start_date && new Date(j.start_date).getTime() > Date.now() ? (
+                              <Button variant="ghost" size="icon" onClick={() => publishMutation.mutate(j.id)} title="Schedule campaign start">
+                                <Clock className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <Button variant="ghost" size="icon" onClick={() => publishMutation.mutate(j.id)} title="Publish">
+                                <Play className="h-4 w-4" />
+                              </Button>
+                            )
+                          )}
+                          {j.status === "scheduled" && (
+                            <Button variant="ghost" size="icon" onClick={() => revertToDraftMutation.mutate(j.id)} title="Back to draft">
+                              <Undo2 className="h-4 w-4" />
                             </Button>
                           )}
                           {j.status === "active" && (

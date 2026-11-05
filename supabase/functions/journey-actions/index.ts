@@ -345,6 +345,18 @@ serve(async (req) => {
         const excludedTable = isMarketingJourney ? 'marketing_journey_excluded_contacts' : 'journey_excluded_contacts';
         const audienceKey = isMarketingJourney ? 'contact_id' : 'retailer_id';
 
+        // Campaign window. A campaign whose end date has passed can't be published
+        // (it would be completed on the very next sweep); a future start date parks
+        // the journey as 'scheduled' and the process-journeys sweep promotes it.
+        const publishNowMs = Date.now();
+        if (journey.end_date && new Date(journey.end_date).getTime() <= publishNowMs) {
+          return new Response(JSON.stringify({ error: 'This campaign\'s end date has passed. Edit the dates before publishing.' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const campaignStartMs = journey.start_date ? new Date(journey.start_date).getTime() : null;
+        const isFutureStart = campaignStartMs !== null && campaignStartMs > publishNowMs;
+
         if (reentry) {
           // Scheduled re-fire / manual re-run: clear in-flight enrollments so
           // everyone who still matches the audience goes through the journey again.
@@ -390,6 +402,10 @@ serve(async (req) => {
           startFireAt = nextFireAtForNode(startNodeId, nodes);
         } else {
           startNodeId = steps[0].id;
+        }
+        if (isFutureStart && campaignStartMs !== null) {
+          // Delays count from the campaign start, not from the moment of publishing.
+          startFireAt = new Date(new Date(startFireAt).getTime() + (campaignStartMs - publishNowMs)).toISOString();
         }
 
         const { data: excluded } = await supabase.from(excludedTable).select(audienceKey).eq('journey_id', journey_id);
@@ -462,11 +478,12 @@ serve(async (req) => {
           }
         }
 
-        await supabase.from('journeys').update({ status: 'active' }).eq('id', journey_id);
+        await supabase.from('journeys').update({ status: isFutureStart ? 'scheduled' : 'active' }).eq('id', journey_id);
 
         // Real-time kick: nudge process-journeys immediately instead of waiting
         // for the next 5-minute cron tick, so "send immediately" steps go out now.
-        if (toEnroll.length > 0) {
+        // (Not for a scheduled campaign: nothing is due until its start date.)
+        if (!isFutureStart && toEnroll.length > 0) {
           const kick = fetch(`${supabaseUrl}/functions/v1/process-journeys`, {
             method: 'POST',
             headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
@@ -475,9 +492,43 @@ serve(async (req) => {
           if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(kick);
         }
 
-        return new Response(JSON.stringify({ success: true, newly_enrolled: toEnroll.length }), {
+        return new Response(JSON.stringify({
+          success: true, newly_enrolled: toEnroll.length,
+          scheduled: isFutureStart, start_date: isFutureStart ? journey.start_date : null,
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
+      }
+
+      // A scheduled campaign can go back to draft any time before it starts.
+      if (action === 'revert-to-draft') {
+        const { journey_id } = body;
+        if (!journey_id) {
+          return new Response(JSON.stringify({ error: 'journey_id is required' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const { data: j } = await supabase.from('journeys').select('status, segment_type, deleted_at').eq('id', journey_id).maybeSingle();
+        if (!j || j.deleted_at) {
+          return new Response(JSON.stringify({ error: 'Journey not found' }), {
+            status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        if (j.status !== 'scheduled') {
+          return new Response(JSON.stringify({ error: 'Only a scheduled campaign can be moved back to draft' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const table = MARKETING_SEGMENT_TYPES.has(j.segment_type) ? 'marketing_journey_enrollments' : 'journey_enrollments';
+        // Drop the audience snapshot taken at scheduling time; publishing again re-resolves it.
+        await supabase.from(table).delete().eq('journey_id', journey_id).neq('status', 'completed');
+        const { error } = await supabase.from('journeys').update({ status: 'draft' }).eq('id', journey_id).eq('status', 'scheduled');
+        if (error) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
       if (action === 'pause' || action === 'archive') {

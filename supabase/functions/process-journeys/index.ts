@@ -1,11 +1,34 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { decryptToken } from "../_shared/meta-crypto.ts";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-token',
 };
+
+const sha256 = (v: string) => createHash('sha256').update(v, 'utf8').digest();
+
+// Who may run the sweep: a signed-in user (the "Run Now" button, publish's real-time
+// kick) or the scheduler, which presents the token stored in public.journey_cron_token
+// (readable only with the service role). Gateway JWT verification is off for this
+// function so the scheduler can call it without any key; anything else gets a 401.
+// deno-lint-ignore no-explicit-any
+async function isAuthorizedSweep(req: Request, supabase: any): Promise<boolean> {
+  const cronToken = req.headers.get('x-cron-token');
+  if (cronToken) {
+    const { data } = await supabase.from('journey_cron_token').select('token').limit(1).maybeSingle();
+    if (data?.token && timingSafeEqual(sha256(cronToken), sha256(String(data.token)))) return true;
+    return false;
+  }
+  const bearer = /^Bearer\s+(\S+)$/.exec(req.headers.get('authorization') ?? '')?.[1];
+  if (!bearer) return false;
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (serviceKey && timingSafeEqual(sha256(bearer), sha256(serviceKey))) return true;
+  const { data, error } = await supabase.auth.getUser(bearer);
+  return !error && !!data?.user;
+}
 
 // Cron-driven sweep (also safe to invoke manually, e.g. a "Run Now" button):
 // advances every active journey_enrollments row whose next_fire_at is due —
@@ -21,6 +44,12 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    if (!(await isAuthorizedSweep(req, supabase))) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
     const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
@@ -62,12 +91,38 @@ serve(async (req) => {
       return (data || []).map((r: { id: string }) => r.id);
     }
 
+    // --- Campaign window sweeps (journeys.start_date / end_date). Run first so a
+    // journey that starts now is picked up by this tick's due-step processing and a
+    // journey past its end date sends nothing more. Message processing below only
+    // ever touches journeys with status = 'active'.
+    let campaignsStarted = 0;
+    let campaignsCompleted = 0;
+    {
+      const nowIso = new Date().toISOString();
+      const { data: toStart } = await supabase
+        .from('journeys').select('id')
+        .eq('status', 'scheduled').not('start_date', 'is', null).lte('start_date', nowIso)
+        .is('deleted_at', null).limit(50);
+      for (const j of toStart || []) {
+        const { error } = await supabase.from('journeys').update({ status: 'active' }).eq('id', j.id).eq('status', 'scheduled');
+        if (!error) campaignsStarted++;
+      }
+      const { data: toComplete } = await supabase
+        .from('journeys').select('id')
+        .eq('status', 'active').not('end_date', 'is', null).lte('end_date', nowIso)
+        .is('deleted_at', null).limit(50);
+      for (const j of toComplete || []) {
+        const { error } = await supabase.from('journeys').update({ status: 'completed' }).eq('id', j.id).eq('status', 'active');
+        if (!error) campaignsCompleted++;
+      }
+    }
+
     // --- Scheduled re-fire sweep: approved journeys with a due journey_schedules
     // row get auto-(re-)published, then next_run_at advances per recurrence_rule.
     let schedulesFired = 0;
     const { data: dueSchedules } = await supabase
       .from('journey_schedules')
-      .select('*, journeys!inner(id, filters, canvas_data, status, approval_status, deleted_at, segment_type)')
+      .select('*, journeys!inner(id, filters, canvas_data, status, approval_status, deleted_at, segment_type, end_date)')
       .not('next_run_at', 'is', null)
       .is('journeys.deleted_at', null)
       .lte('next_run_at', new Date().toISOString())
@@ -76,6 +131,9 @@ serve(async (req) => {
     for (const sched of dueSchedules || []) {
       const journey = sched.journeys;
       if (!journey || journey.status === 'archived' || journey.approval_status !== 'approved') continue;
+      // A campaign that hasn't started yet, has completed, or is past its end date is never re-fired.
+      if (journey.status === 'scheduled' || journey.status === 'completed') continue;
+      if (journey.end_date && new Date(journey.end_date).getTime() <= Date.now()) continue;
 
       const isMarketingJourney = MARKETING_SEGMENT_TYPES.has(journey.segment_type);
       const enrollmentsTable = isMarketingJourney ? 'marketing_journey_enrollments' : 'journey_enrollments';
@@ -868,7 +926,7 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ swept: (due || []).length + (dueMarketing || []).length, sent: processed, failed, schedules_fired: schedulesFired }), {
+    return new Response(JSON.stringify({ swept: (due || []).length + (dueMarketing || []).length, sent: processed, failed, schedules_fired: schedulesFired, campaigns_started: campaignsStarted, campaigns_completed: campaignsCompleted }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {

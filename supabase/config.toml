@@ -128,3 +128,6 @@ verify_jwt = true
 # fleet_api_config.
 [functions.fleet-telematics-webhook]
 verify_jwt = false
+
+[functions.process-journeys]
+verify_jwt = false
