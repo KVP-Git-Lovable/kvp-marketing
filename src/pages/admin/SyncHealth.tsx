@@ -98,7 +98,7 @@ const SyncHealth = () => {
           .from('profiles')
           .select('user_id, full_name')
           .in('user_id', userIds);
-        const nameMap = new Map((profs ?? []).map((p: any) => [p.user_id as string, p.full_name as string]));
+        const nameMap = new Map<string, string>((profs ?? []).map((p: any) => [p.user_id as string, p.full_name as string]));
         failedRows.forEach(r => { r.user_name = nameMap.get(r.user_id!) ?? undefined; });
       }
       setFailed(failedRows);
