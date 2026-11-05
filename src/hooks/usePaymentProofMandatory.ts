@@ -10,7 +10,7 @@ export const usePaymentProofMandatory = () => {
     
     // Subscribe to changes in feature flags
     const channel = supabase
-      .channel('payment-proof-mandatory-changes')
+      .channel(`payment-proof-mandatory-changes-${crypto.randomUUID()}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',

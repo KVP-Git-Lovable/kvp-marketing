@@ -9,7 +9,7 @@ import {
   Building2, User, FileText, Table as TableIcon, Calculator,
   CreditCard, FileSignature, RotateCcw, Receipt,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/supabaseLoose';
 import { toast } from "sonner";
 
 /**

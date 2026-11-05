@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useQAMode } from '@/contexts/QAModeContext';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabaseLoose';
 import { table } from '@/lib/tableRouter';
 import { type QACustomTestRow } from './qaResultsShared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -60,7 +60,7 @@ export const CustomTestScreen = () => {
     if (!userId) return;
 
     const { data } = await supabase
-      .from(table('qa_custom_tests') as any)
+      .from((table as any)('qa_custom_tests'))
       .select('*')
       .eq('created_by', userId)
       .order('created_at', { ascending: false })
@@ -85,7 +85,7 @@ export const CustomTestScreen = () => {
       const userId = userRes?.user?.id ?? null;
 
       const { data: inserted, error: insErr } = await supabase
-        .from(table('qa_custom_tests') as any)
+        .from((table as any)('qa_custom_tests'))
         .insert({
           prompt: prompt.trim(),
           page_context: pageContext.trim() || null,
