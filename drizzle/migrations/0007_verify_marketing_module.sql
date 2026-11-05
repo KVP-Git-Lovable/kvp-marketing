@@ -1,0 +1,1 @@
+COMMENT ON SCHEMA replay_log IS 'errors from restoring the database structure';

@@ -7,7 +7,7 @@
  * visit, which itself requires native camera/GPS-backed attendance.
  */
 import type { QATestAction } from '@/qa/types';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabaseLoose';
 import { table } from '@/lib/tableRouter';
 
 export const orderActions: QATestAction[] = [

@@ -8,7 +8,7 @@ import {
   ChevronRight, ChevronDown, Map as MapIcon, Route, Store, Search,
   Phone, AlertTriangle, Loader2, User, Users,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/supabaseLoose';
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { TILE_TONES } from "@/components/distributor/tileTones";

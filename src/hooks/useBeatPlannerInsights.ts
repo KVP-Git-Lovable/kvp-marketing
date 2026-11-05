@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/supabaseLoose';
 import { runSimulation } from "@/modules/quickapp-ai/hooks/useAiWorkflows";
 
 /**

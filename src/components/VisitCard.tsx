@@ -14,7 +14,7 @@ import { toast } from "@/hooks/use-toast";
 import { CompetitionDataForm } from "./CompetitionDataForm";
 import { RetailerFeedbackModal } from "./RetailerFeedbackModal";
 import { NoOrderModal } from "./NoOrderModal";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/supabaseLoose';
 import BrandingRequestModal from "./BrandingRequestModal";
 import { JointSalesFeedbackModal } from "./JointSalesFeedbackModal";
 import { JointSalesFeedbackViewModal } from "./JointSalesFeedbackViewModal";

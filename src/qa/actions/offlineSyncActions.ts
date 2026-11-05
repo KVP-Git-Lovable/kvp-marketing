@@ -20,7 +20,7 @@
  */
 import type { QATestAction } from '@/qa/types';
 import { offlineStorage, STORES } from '@/lib/offlineStorage';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabaseLoose';
 import { table } from '@/lib/tableRouter';
 
 import { Preferences } from '@capacitor/preferences';

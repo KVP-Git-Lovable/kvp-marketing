@@ -1,0 +1,1 @@
+COMMENT ON SCHEMA replay_log IS 'errors from replaying newer changes (pass 2)';

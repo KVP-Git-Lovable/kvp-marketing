@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { format, parseISO } from "date-fns";
 import { AlertTriangle, ArrowRight, Calendar as CalIcon, Users, Split, RotateCcw, UserMinus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/supabaseLoose';
 import { useCalendarData, type DayBeatStatus } from "@/hooks/useCalendarData";
 import { formatLastServed } from "@/utils/beatCalendarUtils";
 import { usePermissions } from "@/hooks/usePermissions";
