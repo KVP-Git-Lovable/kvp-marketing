@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Target } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/db';
+import { supabase } from '@/lib/supabaseLoose';
 
 interface TargetVsActualCardProps {
   entityType: 'beat' | 'retailer';

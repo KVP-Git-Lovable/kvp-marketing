@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Building2, Calendar, MessageSquare, Palette, FileText, Image, User, MapPin, IndianRupee, CheckCircle, Clock, XCircle, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { supabase } from '@/integrations/supabase/db';
+import { supabase } from '@/lib/supabaseLoose';
 import { toast } from "@/hooks/use-toast";
 
 type BrandingStatus = 'submitted' | 'pending' | 'approved' | 'rejected' | 'in_progress' | 'executed' | 'completed';

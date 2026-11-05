@@ -44,7 +44,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { supabase } from '@/integrations/supabase/db';
+import { supabase } from '@/lib/supabaseLoose';
 import { toast } from "sonner";
 import { fetchAllPaginated } from "@/utils/fetchAllPaginated";
 

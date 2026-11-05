@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/db';
+import { supabase } from '@/lib/supabaseLoose';
 
 /**
  * Whose name an invoice goes out in.

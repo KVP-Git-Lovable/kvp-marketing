@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { offlineStorage, STORES } from '@/lib/offlineStorage';
-import { supabase } from '@/integrations/supabase/db';
+import { supabase } from '@/lib/supabaseLoose';
 
 export interface ProductScheme {
   id: string;

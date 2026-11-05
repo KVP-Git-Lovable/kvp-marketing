@@ -1,5 +1,5 @@
 import type { QATestAction } from '@/qa/types';
-import { supabase } from '@/integrations/supabase/db';
+import { supabase } from '@/lib/supabaseLoose';
 import { table } from '@/lib/tableRouter';
 import { format } from 'date-fns';
 

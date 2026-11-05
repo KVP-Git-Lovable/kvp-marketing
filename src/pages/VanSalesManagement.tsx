@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FleetManagement } from '@/components/FleetManagement';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { supabase } from '@/integrations/supabase/db';
+import { supabase } from '@/lib/supabaseLoose';
 import { toast } from 'sonner';
 import { moveToRecycleBin } from '@/utils/recycleBinUtils';
 import { downloadExcel } from '@/utils/fileDownloader';

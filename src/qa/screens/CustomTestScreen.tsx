@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useQAMode } from '@/contexts/QAModeContext';
-import { supabase } from '@/integrations/supabase/db';
+import { supabase } from '@/lib/supabaseLoose';
 import { table } from '@/lib/tableRouter';
 import { type QACustomTestRow } from './qaResultsShared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

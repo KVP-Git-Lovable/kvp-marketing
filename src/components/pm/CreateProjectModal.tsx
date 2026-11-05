@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCreateProject } from "@/hooks/useProjects";
 import { useTemplates } from "@/hooks/useTemplates";
-import { supabase } from '@/integrations/supabase/db';
+import { supabase } from '@/lib/supabaseLoose';
 import { Calendar, DollarSign, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { addDays, format } from "date-fns";

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from '@/integrations/supabase/db';
+import { supabase } from '@/lib/supabaseLoose';
 import { Award, Medal, Trophy, Crown } from "lucide-react";
 
 /** Icon names are stored per tier in the database, so the set of tiers can be

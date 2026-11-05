@@ -12,7 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { usePackingList, OrderForPacking } from '@/hooks/usePackingList';
-import { supabase } from '@/integrations/supabase/db';
+import { supabase } from '@/lib/supabaseLoose';
 import { useToast } from '@/hooks/use-toast';
 import OrderReviewApprovalDialog, { ApprovedItemMap, ManualBatchEntry } from './OrderReviewApprovalDialog';
 import SecondaryCreatePanel from './SecondaryCreatePanel';

@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/db';
+import { supabase } from '@/lib/supabaseLoose';
 import { fetchAllRows } from '@/utils/fetchAllRows';
 
 import { getAllModulePermissionItems } from '@/components/security/permissionModules';
