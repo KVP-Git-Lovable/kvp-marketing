@@ -1,0 +1,1 @@
+ALTER TABLE public.visits ALTER COLUMN retailer_id DROP NOT NULL;

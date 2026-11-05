@@ -1,0 +1,869 @@
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { Plus, Trash2, AlertTriangle, Star, Loader2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import {
+  AWARD_MODES, CAP_SCOPES, CONDITION_FIELDS, EXPIRY_OPTIONS, GROWTH_COMPARE,
+  GROWTH_METRICS, OPERATORS, ProgramCategory, TARGET_PERIODS, TRIGGERS,
+} from "./constants";
+import { useActivityTiers, useFocusedProductCount, useGamSettings, useProgram, useTargetKpis } from "./hooks";
+
+import { EligibilityBuilder } from "./EligibilityBuilder";
+import { fromLegacy, parseRules, rulesAreSet, serialiseRules, type EligibilityRules } from "./eligibilityRules";
+import { OverviewEditor } from "./OverviewEditor";
+import { parseOverview, serialiseOverview, type OverviewContent } from "./overviewContent";
+
+interface Condition { field: string; operator: string; value: any }
+interface Tier {
+  id?: string;
+  threshold_pct: number;
+  points: number;
+  /** Order-milestone rungs only — which order in the retailer's sequence. */
+  order_ordinal?: number | null;
+  basis?: string | null;
+  operator?: string | null;
+  threshold?: number | null;
+}
+
+/** How a ladder of milestones pays out. */
+const REWARD_LOGIC = [
+  { value: "sequential", label: "Sequential — pay in order, each needs the one before" },
+  { value: "cumulative", label: "Cumulative — each milestone pays on its own" },
+  { value: "all_or_nothing", label: "All or nothing — pay the total once the ladder completes" },
+];
+
+/** A milestone counts PURCHASE EVENTS, not order rows: every order a retailer
+ *  places in one visit — or on one day, when no visit was recorded — is a
+ *  single purchase, judged on the combined value of its orders. */
+const MILESTONE_ORDERS = [
+  { value: 1, label: "First purchase event" },
+  { value: 2, label: "Second purchase event" },
+  { value: 3, label: "Third purchase event" },
+  { value: 4, label: "Fourth purchase event" },
+  { value: 5, label: "Fifth purchase event" },
+];
+
+/** Value, or the quantity the order was taken for.
+ *
+ *  Quantity is the plain sum of the event's line quantities, in the units they
+ *  were entered. It is not normalised through the UoM master — that master is
+ *  not ours to change, and 73% of live order lines carry no conversion factor
+ *  to normalise with. So it answers "how many units were ordered", which is
+ *  what the number on the order says.
+ *
+ *  Where one event mixes units it adds a KG to a PIECE. The label and the
+ *  hint below say so plainly rather than implying a conversion that is not
+ *  happening, and the award panel breaks the total down by unit. */
+/** One array, so an effect that depends on it does not re-run every render. */
+const NO_TIERS: any[] = [];
+
+const MILESTONE_BASES = [
+  { value: "order_value", label: "Combined order value" },
+  { value: "order_quantity", label: "Combined order quantity" },
+  { value: "order_weight", label: "Combined order weight (kg)" },
+];
+
+const isQty = (b?: string | null) => b === "order_quantity";
+const isWeight = (b?: string | null) => b === "order_weight";
+
+/** The threshold is rupees, units or kilograms depending on the basis. */
+const thresholdLabel = (b?: string | null) =>
+  isWeight(b) ? "Threshold — combined weight (kg)"
+  : isQty(b)  ? "Threshold — combined quantity"
+  :             "Threshold — combined value";
+
+interface Props {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  programId: string;
+  category: ProgramCategory;
+  activity?: any | null;
+}
+
+export function ActivityForm({ open, onOpenChange, programId, category, activity }: Props) {
+  const qc = useQueryClient();
+  const { data: settings } = useGamSettings();
+  const { data: kpis = [] } = useTargetKpis();
+  const { data: focusedCount = 0 } = useFocusedProductCount();
+  const { data: existingTiers = NO_TIERS } = useActivityTiers(activity?.id);
+  const { data: program } = useProgram(programId);
+
+  // What one point of THIS GAME is worth. It lives on the game, not the
+  // activity, so it is shown here with that said plainly — editing it from any
+  // of the game's activities changes it for all of them. New games start from
+  // the global gamification_settings.point_conversion.
+  const globalRate = Number(settings?.point_conversion ?? 1);
+  const storedRate = program
+    ? Number((program as any).points_to_rupee_conversion ?? globalRate)
+    : null;
+  const [rupeesPerPoint, setRupeesPerPoint] = useState("");
+
+  const isTargetTiered = category === "targets";
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<any>({});
+  const [conditions, setConditions] = useState<Condition[]>([]);
+  const [tiers, setTiers] = useState<Tier[]>([]);
+  const [overview, setOverview] = useState<OverviewContent>({});
+  const [eligibility, setEligibility] = useState<EligibilityRules>({});
+
+  // Visits can also run tier-based: % thresholds against a company-set daily
+  // visit target, each tier awarded once per day as soon as it is reached.
+  const isVisitTiered =
+    category === "visits" && form.trigger_type === "total_visits" && !!form.visit_tiered;
+  // A ladder measured against a retailer's order sequence rather than against a
+  // target percentage. Same table, different columns — see gam_milestone_met.
+  const isOrderMilestone = form.trigger_type === "new_retailer_activation";
+  const usesTiers = isTargetTiered || isVisitTiered || isOrderMilestone;
+
+  useEffect(() => {
+    if (!open) return;
+    const a = activity ?? {};
+    const expiry = a.expiry_type === "days" ? `days:${a.expiry_days ?? 180}` : a.expiry_type ?? "fy_end";
+    setForm({
+      action_name: a.action_name ?? "",
+      description: a.description ?? "",
+      is_enabled: a.is_enabled ?? true,
+      trigger_type: a.trigger_type ?? a.action_type ?? TRIGGERS[category]?.[0]?.value ?? "",
+      points: a.points ?? 5,
+      expiry,
+      validity_from: a.validity_from ?? "",
+      validity_to: a.validity_to ?? "",
+      cap_scope: a.cap_scope ?? (category === "captures" ? "user_day" : "none"),
+      cap_value: a.cap_value ?? (category === "captures" ? 3 : ""),
+      redemption_min: a.redemption_min ?? "",
+      award_mode: a.award_mode ?? settings?.default_award_mode ?? "auto",
+      leaderboard: a.leaderboard ?? true,
+      eligibility_mode: a.eligibility_mode ?? "all",
+      eligibility_ids: a.eligibility_ids ?? [],
+      kpi_id: a.kpi_id ?? "",
+      target_period: a.target_period ?? "monthly",
+      growth_metric: a.conditions_json?.growth_metric ?? "total_sales",
+      growth_compare: a.conditions_json?.compare_against ?? "previous_month",
+      min_growth_percentage: a.min_growth_percentage ?? 10,
+      visit_tiered: category === "visits" && !!a.is_tiered && !a.kpi_id,
+      base_daily_target: a.base_daily_target ?? "",
+    });
+    setConditions(Array.isArray(a.conditions_json) ? a.conditions_json : []);
+    setForm((f: any) => ({ ...f, reward_logic: a.tier_mode || "sequential" }));
+    setOverview(parseOverview(a.overview));
+    // An activity saved before this builder existed still carries mode/ids;
+    // lift it into the new shape so opening the form does not quietly widen it.
+    const saved = parseRules(a.eligibility_rules);
+    setEligibility(rulesAreSet(saved) ? saved : fromLegacy(a.eligibility_mode ?? "all", a.eligibility_ids ?? []));
+  }, [open, activity, category, settings?.default_award_mode]);
+
+  useEffect(() => {
+    if (!open || storedRate === null) return;
+    setRupeesPerPoint(String(storedRate));
+  }, [open, storedRate]);
+
+  useEffect(() => {
+    if (existingTiers.length) {
+      setTiers(existingTiers.map((t: any) => ({
+        id: t.id,
+        threshold_pct: t.threshold_pct,
+        points: Number(t.points),
+        order_ordinal: t.order_ordinal ?? null,
+        basis: t.basis ?? null,
+        operator: t.operator ?? null,
+        threshold: t.threshold == null ? null : Number(t.threshold),
+      })));
+      return;
+    }
+    // A new ladder starts from the shape its trigger actually uses, so the
+    // first row is never one the awarder would ignore.
+    setTiers(
+      isOrderMilestone
+        ? [{ threshold_pct: 0, points: 100, order_ordinal: 1, basis: "order_value", operator: ">=", threshold: 5000 }]
+        : [{ threshold_pct: 80, points: 5 }],
+    );
+  }, [existingTiers, open, isOrderMilestone]);
+
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  const save = async () => {
+    if (!form.action_name?.trim()) return toast.error("Give the activity a name");
+    if (category === "captures" && (!form.cap_value || Number(form.cap_value) <= 0)) {
+      return toast.error("Capture activities need a daily cap");
+    }
+    if (isTargetTiered && kpis.length === 0) {
+      return toast.error("No KPIs defined yet. Set up KPIs in the Targets module first.");
+    }
+    if (isTargetTiered && !form.kpi_id) {
+      return toast.error("Choose a KPI from the Targets module");
+    }
+    if (isVisitTiered && (!form.base_daily_target || Number(form.base_daily_target) <= 0)) {
+      return toast.error("Enter the daily visit target the tier percentages apply to");
+    }
+    if (isVisitTiered && tiers.length === 0) {
+      return toast.error("Add at least one tier");
+    }
+
+    // Only enforced once the game has loaded — an empty box before then just
+    // means "not ready yet", and the write below is skipped anyway. After that,
+    // empty must NOT quietly become ₹0 per point.
+    const nextRate = Number(rupeesPerPoint);
+    if (storedRate !== null && (!rupeesPerPoint.trim() || !Number.isFinite(nextRate) || nextRate < 0)) {
+      return toast.error("Enter what one point of this game is worth in rupees, e.g. 0.5");
+    }
+
+    setSaving(true);
+    const [expType, expDays] = String(form.expiry).split(":");
+    const conditionsJson =
+      category === "beats"
+        ? { growth_metric: form.growth_metric, compare_against: form.growth_compare, min_growth_percentage: Number(form.min_growth_percentage) || 0 }
+        : conditions;
+
+    const payload: any = {
+      game_id: programId,
+      action_name: form.action_name.trim(),
+      description: form.description || null,
+      is_enabled: form.is_enabled,
+      action_type: form.trigger_type,
+      trigger_type: form.trigger_type,
+      points: Number(form.points) || 0,
+      conditions_json: conditionsJson,
+      expiry_type: expType,
+      expiry_days: expType === "days" ? Number(expDays) : null,
+      validity_from: form.validity_from || null,
+      validity_to: form.validity_to || null,
+      cap_scope: form.cap_scope,
+      cap_value: form.cap_value ? Number(form.cap_value) : null,
+      redemption_min: form.redemption_min ? Number(form.redemption_min) : null,
+      award_mode: form.award_mode,
+      leaderboard: form.leaderboard,
+      // The legacy pair is still written so anything reading it directly keeps
+      // working; gam_is_eligible prefers the rules whenever they are set.
+      eligibility_mode: rulesAreSet(eligibility) ? "all" : form.eligibility_mode,
+      eligibility_ids: rulesAreSet(eligibility) ? [] : form.eligibility_ids,
+      eligibility_rules: serialiseRules(eligibility),
+      is_tiered: usesTiers,
+      // Order-milestone ladders carry the admin's chosen reward logic.
+      // Everything else pays cumulatively — a percentage ladder reaching six
+      // rungs pays all six. NOT NULL, so a value is always written.
+      tier_mode: isOrderMilestone ? (form.reward_logic || "sequential") : "cumulative",
+      kpi_id: isTargetTiered ? form.kpi_id : null,
+      target_period: isTargetTiered ? form.target_period : null,
+      base_daily_target: isVisitTiered ? Number(form.base_daily_target) : null,
+      min_growth_percentage: category === "beats" ? Number(form.min_growth_percentage) || 0 : null,
+      // blanks are stripped so "section not configured" and "section configured
+      // with nothing in it" cannot diverge
+      overview: serialiseOverview(overview),
+    };
+
+    let actionId = activity?.id;
+    if (actionId) {
+      const { error } = await supabase.from("gamification_actions").update(payload).eq("id", actionId);
+      if (error) { setSaving(false); return toast.error(error.message); }
+    } else {
+      const { data, error } = await supabase.from("gamification_actions").insert(payload).select("id").single();
+      if (error) { setSaving(false); return toast.error(error.message); }
+      actionId = data.id;
+    }
+
+    if (usesTiers && actionId) {
+      await supabase.from("activity_tiers").delete().eq("action_id", actionId);
+      const rows = isOrderMilestone
+        ? tiers
+            .filter((t) => Number(t.order_ordinal) > 0)
+            .map((t, i) => ({
+              action_id: actionId,
+              // Unused by order milestones, but written as a harmless zero so
+              // the column keeps a value on every rung.
+              threshold_pct: 0,
+              points: Number(t.points) || 0,
+              sort: i,
+              order_ordinal: Number(t.order_ordinal),
+              basis: t.basis || "order_value",
+              operator: t.operator || ">=",
+              threshold: Number(t.threshold) || 0,
+            }))
+        : tiers
+            .filter((t) => t.threshold_pct !== null && t.threshold_pct !== undefined)
+            .map((t, i) => ({ action_id: actionId, threshold_pct: Number(t.threshold_pct), points: Number(t.points) || 0, sort: i }));
+      // Reported rather than swallowed: the delete above has already run, so a
+      // failed insert leaves the activity with NO rungs, and a ladder that
+      // silently lost its rungs looks like an engine fault rather than a save
+      // that did not land.
+      if (rows.length) {
+        const { error: tierError } = await supabase.from("activity_tiers").insert(rows as any);
+        if (tierError) {
+          setSaving(false);
+          return toast.error("Milestones could not be saved: " + tierError.message);
+        }
+      }
+    }
+
+    // Saved with the activity rather than on blur, so Cancel really cancels —
+    // this writes to the game, which the rest of the module reads.
+    if (storedRate !== null && nextRate !== storedRate) {
+      const { data: updated, error } = await supabase
+        .from("gamification_games")
+        .update({ points_to_rupee_conversion: nextRate } as any)
+        .eq("id", programId)
+        .select("id");
+      if (error) { setSaving(false); return toast.error(error.message); }
+      // A blocked update returns no rows and no error; without this the activity
+      // would save and the point value would silently not.
+      if (!updated?.length) {
+        setSaving(false);
+        return toast.error("The activity was saved, but your profile cannot change this game's point value.");
+      }
+    }
+
+    setSaving(false);
+    qc.invalidateQueries({ queryKey: ["gam-activities"] });
+    qc.invalidateQueries({ queryKey: ["gam-tiers", actionId] });
+    // The activity card reads its points range and its milestone ladder from
+    // this one. Its key is partly the ACTIVITY COUNT, which does not change
+    // when a rung is edited — so without this, editing a threshold saved
+    // correctly and the card went on showing the old one.
+    qc.invalidateQueries({ queryKey: ["gam-tier-ranges"] });
+    qc.invalidateQueries({ queryKey: ["gam-programs"] });
+    qc.invalidateQueries({ queryKey: ["gam-program", programId] });
+    qc.invalidateQueries({ queryKey: ["gam-program-usage"] });
+    toast.success(activity ? "Activity updated" : "Activity created");
+    onOpenChange(false);
+  };
+
+  const fields = CONDITION_FIELDS[form.trigger_type] ?? [];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-pixel text-sm text-orange-600">
+            {activity ? "EDIT ACTIVITY" : "NEW ACTIVITY"}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-5">
+          {/* 1. Activity details */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="font-pixel text-[8.5px] uppercase tracking-[0.05em] text-muted-foreground leading-relaxed">1 · ACTIVITY DETAILS</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <Label>Name</Label>
+                <Input value={form.action_name ?? ""} onChange={(e) => set("action_name", e.target.value)} />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Textarea rows={2} value={form.description ?? ""} onChange={(e) => set("description", e.target.value)} />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <Label className="mb-0">Activity active</Label>
+                <Switch checked={!!form.is_enabled} onCheckedChange={(v) => set("is_enabled", v)} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 2. Trigger & conditions */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="font-pixel text-[8.5px] uppercase tracking-[0.05em] text-muted-foreground leading-relaxed">2 · TRIGGER & CONDITIONS</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <Label>Trigger type</Label>
+                <Select value={form.trigger_type} onValueChange={(v) => { set("trigger_type", v); setConditions([]); }}>
+                  <SelectTrigger><SelectValue placeholder="Choose a trigger" /></SelectTrigger>
+                  <SelectContent>
+                    {(TRIGGERS[category] ?? []).map((t) => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {category === "products" && (
+                <div className="rounded-lg border bg-purple-50 border-purple-200 p-3 space-y-2">
+                  <p className="text-sm text-purple-900 flex items-center gap-2">
+                    <Star className="h-4 w-4" /> Focus products · auto-detected — awards when an order contains a product flagged Focused in Product Management.
+                  </p>
+                  <Link to="/gamification-admin/focus-products" className="text-sm underline text-purple-700">
+                    Manage focus products
+                  </Link>
+                  {focusedCount === 0 && (
+                    <p className="text-sm text-destructive flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4" /> No products are flagged focused — this activity will not award.
+                    </p>
+                  )}
+                  {focusedCount > 0 && <p className="text-xs text-purple-700">{focusedCount} products flagged</p>}
+                </div>
+              )}
+
+              {category === "beats" && (
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div>
+                    <Label>Growth metric</Label>
+                    <Select value={form.growth_metric} onValueChange={(v) => set("growth_metric", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {GROWTH_METRICS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Compare against</Label>
+                    <Select value={form.growth_compare} onValueChange={(v) => set("growth_compare", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {GROWTH_COMPARE.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Minimum growth %</Label>
+                    <Input type="number" value={form.min_growth_percentage ?? ""} onChange={(e) => set("min_growth_percentage", e.target.value)} />
+                  </div>
+                </div>
+              )}
+
+              {category === "captures" && (
+                <div className="rounded-lg border bg-pink-50 border-pink-200 p-3 text-sm text-pink-900">
+                  Awards on form submission. A daily cap is required below.
+                </div>
+              )}
+
+              {category === "visits" && form.trigger_type === "total_visits" && (
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <Label className="mb-0">Tier-based daily reward</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Award tiers as productive visits reach a % of the daily visit target
+                    </p>
+                  </div>
+                  <Switch checked={!!form.visit_tiered} onCheckedChange={(v) => set("visit_tiered", v)} />
+                </div>
+              )}
+
+              {isVisitTiered && (
+                <div>
+                  <Label>Daily visit target (total visits per day)</Label>
+                  <Input
+                    type="number" className="w-40"
+                    value={form.base_daily_target ?? ""}
+                    onChange={(e) => set("base_daily_target", e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Tier percentages apply to this number — e.g. 30% of 50 = 15 productive visits required.
+                    A visit counts as productive only when it converts to an order.
+                  </p>
+                </div>
+              )}
+
+              {isTargetTiered && (
+                <div className="space-y-3">
+                  <div className="rounded-lg border bg-indigo-50 border-indigo-200 p-3 text-sm text-indigo-900">
+                    Reads the Targets module — each rep is scored on their own achievement %. No target is entered here.
+                  </div>
+                  {kpis.length === 0 ? (
+                    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                      <span>
+                        No KPIs defined yet. Set up KPIs in the Targets module before this activity can award points.{" "}
+                        <Link to="/admin/performance-module" className="underline font-medium">Open Targets module</Link>
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <Label>KPI</Label>
+                        <Select value={form.kpi_id} onValueChange={(v) => set("kpi_id", v)}>
+                          <SelectTrigger><SelectValue placeholder="Choose a KPI" /></SelectTrigger>
+                          <SelectContent>
+                            {kpis.map((k: any) => (
+                              <SelectItem key={k.id} value={k.id}>{k.kpi_name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Target period</Label>
+                        <Select value={form.target_period} onValueChange={(v) => set("target_period", v)}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {TARGET_PERIODS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {usesTiers && isOrderMilestone && (
+                <div className="space-y-3">
+                  <div>
+                    <Label>Reward logic</Label>
+                    <Select
+                      value={form.reward_logic || "sequential"}
+                      onValueChange={(v) => set("reward_logic", v)}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {REWARD_LOGIC.map((r) => (
+                          <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Label>Milestones</Label>
+                  {tiers.map((t, i) => (
+                    <div key={i} className="rounded-[12px] border p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[13px] font-semibold">
+                          Milestone {i + 1}
+                          {MILESTONE_ORDERS.find((o) => o.value === Number(t.order_ordinal))
+                            ? ` · ${MILESTONE_ORDERS.find((o) => o.value === Number(t.order_ordinal))!.label.toLowerCase()}`
+                            : ""}
+                        </span>
+                        <Button
+                          type="button" variant="ghost" size="icon"
+                          onClick={() => setTiers(tiers.filter((_, xi) => xi !== i))}
+                          aria-label={`Remove milestone ${i + 1}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Purchase event</Label>
+                          <Select
+                            value={String(t.order_ordinal ?? 1)}
+                            onValueChange={(v) => setTiers(tiers.map((x, xi) => xi === i ? { ...x, order_ordinal: Number(v) } : x))}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {MILESTONE_ORDERS.map((o) => (
+                                <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Milestone basis</Label>
+                          <Select
+                            value={t.basis || "order_value"}
+                            onValueChange={(v) => setTiers(tiers.map((x, xi) => xi === i ? { ...x, basis: v } : x))}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {MILESTONE_BASES.map((b) => (
+                                <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {isQty(t.basis) && (
+                            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                              Sum of the line quantities, in the units entered. Not converted between
+                              units, so an order mixing KG and PIECE adds them together.
+                            </p>
+                          )}
+                          {isWeight(t.basis) && (
+                            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                              Quantity × net weight per selling unit, summed over the whole order.
+                              A product with no net weight set contributes nothing, so set it on
+                              every product you expect to count.
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Comparison</Label>
+                          <Select
+                            value={t.operator || ">="}
+                            onValueChange={(v) => setTiers(tiers.map((x, xi) => xi === i ? { ...x, operator: v } : x))}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {OPERATORS.filter((o) => [">=", ">", "<=", "<", "="].includes(o.value)).map((o) => (
+                                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">{thresholdLabel(t.basis)}</Label>
+                          <Input
+                            type="number" min={0} value={t.threshold ?? 0}
+                            onChange={(e) => setTiers(tiers.map((x, xi) => xi === i ? { ...x, threshold: Number(e.target.value) } : x))}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Points</Label>
+                          <Input
+                            type="number" min={0} value={t.points}
+                            onChange={(e) => setTiers(tiers.map((x, xi) => xi === i ? { ...x, points: Number(e.target.value) } : x))}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  <Button
+                    type="button" variant="outline" size="sm"
+                    onClick={() => setTiers([...tiers, {
+                      threshold_pct: 0, points: 100,
+                      order_ordinal: Math.min(5, (tiers.length || 0) + 1),
+                      basis: "order_value", operator: ">=", threshold: 1000,
+                    }])}
+                  >
+                    <Plus className="h-4 w-4 mr-1" /> Add milestone
+                  </Button>
+
+                  <div className="flex items-center justify-between rounded-[10px] border border-dashed px-3 py-2.5">
+                    <span className="text-[13px] text-muted-foreground">Total possible reward</span>
+                    <span className="text-[15px] font-bold">
+                      {tiers.reduce((s, t) => s + (Number(t.points) || 0), 0).toLocaleString()} points
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    {form.reward_logic === "cumulative"
+                      ? "Each milestone pays as soon as its own threshold is met, whatever happened earlier."
+                      : form.reward_logic === "all_or_nothing"
+                      ? "Nothing pays until every milestone is met; the total then lands as one award."
+                      : "A milestone pays only once every milestone before it has also been met. Awarded once per retailer."}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    A purchase event is one retailer visit. Orders placed in the same visit count as a single
+                    purchase and are judged on their combined value; orders with no visit recorded fall back to
+                    the day, so a purchase cannot be split in two by leaving the visit blank.
+                  </p>
+                </div>
+              )}
+
+              {usesTiers && !isOrderMilestone && (
+                  <div className="space-y-2">
+                    <Label>{isVisitTiered ? "Tiers (% of daily visit target → points)" : "Tiers (achievement % ≥ → points)"}</Label>
+                    {tiers.map((t, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <Input
+                          type="number" className="w-28" value={t.threshold_pct}
+                          onChange={(e) => setTiers(tiers.map((x, xi) => xi === i ? { ...x, threshold_pct: Number(e.target.value) } : x))}
+                        />
+                        <span className="text-sm text-muted-foreground">% →</span>
+                        <Input
+                          type="number" className="w-28" value={t.points}
+                          onChange={(e) => setTiers(tiers.map((x, xi) => xi === i ? { ...x, points: Number(e.target.value) } : x))}
+                        />
+                        <span className="text-sm text-muted-foreground">points</span>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => setTiers(tiers.filter((_, xi) => xi !== i))}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button type="button" variant="outline" size="sm" onClick={() => setTiers([...tiers, { threshold_pct: 100, points: 10 }])}>
+                      <Plus className="h-4 w-4 mr-1" /> Add tier
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      Progressive: each tier is awarded once when reached{isVisitTiered ? " (per day)" : " (per period)"} — reaching a higher tier also pays the lower ones.
+                    </p>
+                  </div>
+              )}
+
+              {!usesTiers && category !== "products" && category !== "beats" && category !== "captures" && (
+                <div className="space-y-2">
+                  <Label>Conditions</Label>
+                  {conditions.map((c, i) => (
+                    <div key={i} className="flex flex-wrap items-center gap-2">
+                      <Select value={c.field} onValueChange={(v) => setConditions(conditions.map((x, xi) => xi === i ? { ...x, field: v } : x))}>
+                        <SelectTrigger className="w-48"><SelectValue placeholder="Field" /></SelectTrigger>
+                        <SelectContent>
+                          {fields.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Select value={c.operator} onValueChange={(v) => setConditions(conditions.map((x, xi) => xi === i ? { ...x, operator: v } : x))}>
+                        <SelectTrigger className="w-40"><SelectValue placeholder="Operator" /></SelectTrigger>
+                        <SelectContent>
+                          {OPERATORS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      {!["is_true", "is_false"].includes(c.operator) && (
+                        <Input
+                          className="w-36" value={c.value ?? ""}
+                          onChange={(e) => setConditions(conditions.map((x, xi) => xi === i ? { ...x, value: e.target.value } : x))}
+                        />
+                      )}
+                      <Button type="button" variant="ghost" size="icon" onClick={() => setConditions(conditions.filter((_, xi) => xi !== i))}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button" variant="outline" size="sm" disabled={!fields.length}
+                    onClick={() => setConditions([...conditions, { field: fields[0]?.value, operator: ">=", value: "" }])}
+                  >
+                    <Plus className="h-4 w-4 mr-1" /> Add condition
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 3. Reward */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="font-pixel text-[8.5px] uppercase tracking-[0.05em] text-muted-foreground leading-relaxed">3 · REWARD</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {!usesTiers && (
+                <div>
+                  <Label>Reward points per activity</Label>
+                  <Input type="number" value={form.points ?? 0} onChange={(e) => set("points", e.target.value)} />
+                </div>
+              )}
+              {usesTiers && <p className="text-sm text-muted-foreground">Points come from the tier table above.</p>}
+
+              <div className="rounded-lg border p-3 space-y-2 mt-1">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Label className="mb-0">Point value for this game</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Applies to every activity in {program?.name ?? "this game"}
+                      {storedRate !== null && storedRate !== globalRate
+                        ? ` · global default is ₹${globalRate}`
+                        : " · starts from the global default"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[12.5px] text-muted-foreground">1 pt =</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.05"
+                      aria-label="Rupees per point for this game"
+                      value={rupeesPerPoint}
+                      onChange={(e) => setRupeesPerPoint(e.target.value)}
+                      className="h-8 w-20 text-right"
+                    />
+                    <span className="text-[12.5px] text-muted-foreground">₹</span>
+                  </div>
+                </div>
+                {!usesTiers && Number(form.points) > 0 && Number.isFinite(Number(rupeesPerPoint)) && (
+                  <p className="text-xs text-muted-foreground">
+                    Each award is worth ₹{(Number(form.points) * Number(rupeesPerPoint)).toFixed(2)}.
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 4. Policy */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="font-pixel text-[8.5px] uppercase tracking-[0.05em] text-muted-foreground leading-relaxed">4 · POLICY · THIS ACTIVITY</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label>Expiry</Label>
+                  <Select value={form.expiry} onValueChange={(v) => set("expiry", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {EXPIRY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Award mode</Label>
+                  <Select value={form.award_mode} onValueChange={(v) => set("award_mode", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {AWARD_MODES.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Valid from</Label>
+                  <Input type="date" value={form.validity_from ?? ""} onChange={(e) => set("validity_from", e.target.value)} />
+                </div>
+                <div>
+                  <Label>Valid to</Label>
+                  <Input type="date" value={form.validity_to ?? ""} onChange={(e) => set("validity_to", e.target.value)} />
+                </div>
+                {form.validity_to && new Date(form.validity_to) < new Date(new Date().toDateString()) && (
+                  <div className="sm:col-span-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>
+                      Validity ended on <strong>{form.validity_to}</strong> — this activity will never award
+                      points until the dates are extended or cleared.
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <Label>Cap scope</Label>
+                  <Select value={form.cap_scope} onValueChange={(v) => set("cap_scope", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CAP_SCOPES.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Cap value</Label>
+                  <Input
+                    type="number" disabled={form.cap_scope === "none"}
+                    value={form.cap_value ?? ""} onChange={(e) => set("cap_value", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Redemption minimum</Label>
+                  <Input type="number" value={form.redemption_min ?? ""} onChange={(e) => set("redemption_min", e.target.value)} />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <Label className="mb-0">Counts on leaderboard</Label>
+                  <Switch checked={!!form.leaderboard} onCheckedChange={(v) => set("leaderboard", v)} />
+                </div>
+              </div>
+
+              <EligibilityBuilder value={eligibility} onChange={setEligibility} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="font-pixel text-[8.5px] uppercase tracking-[0.05em] text-muted-foreground leading-relaxed">5 · OVERVIEW · WHAT THE REP READS</CardTitle></CardHeader>
+            <CardContent>
+              <OverviewEditor
+                value={overview}
+                onChange={setOverview}
+                // the writer must quote this activity's real numbers, and the
+                // ones that matter are still unsaved form state
+                config={{
+                  activityName: form.action_name,
+                  gameName: program?.name ?? "",
+                  triggerType: form.trigger_type,
+                  points: Number(form.points) || 0,
+                  tiered: usesTiers,
+                  tiers: usesTiers ? tiers : [],
+                  capScope: form.cap_scope,
+                  capValue: form.cap_value ? Number(form.cap_value) : null,
+                  baseDailyTarget: isVisitTiered ? Number(form.base_daily_target) || null : null,
+                  targetPeriod: isTargetTiered ? form.target_period : null,
+                  conditions,
+                  rupeesPerPoint: rupeesPerPoint || null,
+                }}
+              />
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-end gap-2 pb-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button onClick={save} disabled={saving || (isTargetTiered && kpis.length === 0)}>
+              {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Save activity
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

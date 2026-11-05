@@ -1,0 +1,1 @@
+CREATE POLICY "Authenticated can view product_variants" ON public.product_variants FOR SELECT TO authenticated USING (true);

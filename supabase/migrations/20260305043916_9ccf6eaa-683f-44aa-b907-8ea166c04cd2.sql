@@ -1,0 +1,1 @@
+ALTER TABLE public.attendance ADD COLUMN manual_override_reason text;

@@ -1,0 +1,2 @@
+ALTER TABLE public.activity_events ADD COLUMN IF NOT EXISTS visit_id UUID REFERENCES public.visits(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_activity_events_visit_id ON public.activity_events(visit_id);

@@ -1,0 +1,1 @@
+ALTER TABLE public.leave_applications DROP CONSTRAINT IF EXISTS fk_leave_applications_leave_type_id;

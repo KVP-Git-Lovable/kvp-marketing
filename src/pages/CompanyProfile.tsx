@@ -1,0 +1,95 @@
+import { useNavigate, Navigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Building2, Palette, FileText, Globe, Loader2, ToggleRight } from "lucide-react";
+import CompanySettings from "@/components/invoice/CompanySettings";
+import HeaderBrandingSettings from "@/components/invoice/HeaderBrandingSettings";
+import DocumentSettings from "@/components/invoice/DocumentSettings";
+import InvoiceNumberSettings from "@/components/invoice/InvoiceNumberSettings";
+import RegionalSettings from "@/components/RegionalSettings";
+
+import { CompanyFeaturesTab } from "@/components/features/CompanyFeaturesTab";
+import { Layout } from "@/components/Layout";
+import { useAdminAccess } from "@/hooks/useAdminAccess";
+
+export default function CompanyProfile() {
+  const navigate = useNavigate();
+  const { hasAdminAccess, loading } = useAdminAccess();
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-screen">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!hasAdminAccess) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return (
+    <Layout>
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">Company Profile</h1>
+            <p className="text-muted-foreground">
+              Manage company details and branding settings
+            </p>
+          </div>
+        </div>
+
+        <Tabs defaultValue="branding" className="space-y-4">
+          <TabsList className="grid w-full max-w-3xl grid-cols-5">
+            <TabsTrigger value="branding" className="flex items-center gap-2">
+              <Palette className="h-4 w-4" />
+              Header Branding
+            </TabsTrigger>
+            <TabsTrigger value="details" className="flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              Company Details
+            </TabsTrigger>
+            <TabsTrigger value="documents" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Document Settings
+            </TabsTrigger>
+            <TabsTrigger value="regional" className="flex items-center gap-2">
+              <Globe className="h-4 w-4" />
+              Regional
+            </TabsTrigger>
+            <TabsTrigger value="features" className="flex items-center gap-2">
+              <ToggleRight className="h-4 w-4" />
+              Features
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="branding">
+            <HeaderBrandingSettings />
+          </TabsContent>
+
+          <TabsContent value="details">
+            <CompanySettings />
+          </TabsContent>
+
+          <TabsContent value="documents" className="space-y-4">
+            <InvoiceNumberSettings />
+            <DocumentSettings />
+          </TabsContent>
+
+          <TabsContent value="regional" className="space-y-4">
+            <RegionalSettings />
+            
+          </TabsContent>
+
+
+          <TabsContent value="features">
+            <CompanyFeaturesTab />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </Layout>
+  );
+}

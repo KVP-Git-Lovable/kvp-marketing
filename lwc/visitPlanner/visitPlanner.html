@@ -1,0 +1,175 @@
+<template>
+    <div class="slds-p-around_medium">
+        <!-- Header Card -->
+        <div class="slds-card slds-m-bottom_medium">
+            <div class="slds-card__header slds-grid">
+                <header class="slds-media slds-media_center slds-has-flexi-truncate">
+                    <div class="slds-media__figure">
+                        <lightning-icon icon-name="standard:task" alternative-text="Visit Planner"></lightning-icon>
+                    </div>
+                    <div class="slds-media__body">
+                        <h2 class="slds-card__header-title">
+                            <span>Visit Planner</span>
+                        </h2>
+                        <p class="slds-text-body_small slds-line-height_reset">Plan your retailer visits efficiently</p>
+                    </div>
+                </header>
+            </div>
+        </div>
+
+        <!-- Search and Filters -->
+        <div class="slds-grid slds-wrap slds-gutters slds-m-bottom_medium">
+            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                <lightning-input 
+                    type="search"
+                    label="Search retailers"
+                    value={searchTerm}
+                    onchange={handleSearchChange}
+                    placeholder="Search by name or location...">
+                </lightning-input>
+            </div>
+            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                <lightning-combobox
+                    name="priority"
+                    label="Filter by Priority"
+                    value={selectedPriority}
+                    placeholder="All Priorities"
+                    options={priorityOptions}
+                    onchange={handlePriorityChange}>
+                </lightning-combobox>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="slds-grid slds-wrap slds-gutters slds-m-bottom_large">
+            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-4">
+                <div class="slds-card">
+                    <div class="slds-card__body slds-card__body_inner slds-text-align_center">
+                        <h3 class="slds-text-heading_large slds-text-color_brand">{totalRetailers}</h3>
+                        <p class="slds-text-body_small">Total Retailers</p>
+                    </div>
+                </div>
+            </div>
+            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-4">
+                <div class="slds-card">
+                    <div class="slds-card__body slds-card__body_inner slds-text-align_center">
+                        <h3 class="slds-text-heading_large slds-text-color_success">{highPriorityCount}</h3>
+                        <p class="slds-text-body_small">High Priority</p>
+                    </div>
+                </div>
+            </div>
+            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-4">
+                <div class="slds-card">
+                    <div class="slds-card__body slds-card__body_inner slds-text-align_center">
+                        <h3 class="slds-text-heading_large slds-text-color_warning">{mediumPriorityCount}</h3>
+                        <p class="slds-text-body_small">Medium Priority</p>
+                    </div>
+                </div>
+            </div>
+            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-4">
+                <div class="slds-card">
+                    <div class="slds-card__body slds-card__body_inner slds-text-align_center">
+                        <h3 class="slds-text-heading_large">{lowPriorityCount}</h3>
+                        <p class="slds-text-body_small">Low Priority</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Retailer Cards -->
+        <div class="slds-grid slds-wrap slds-gutters">
+            <template for:each={filteredRetailers} for:item="retailer">
+                <div key={retailer.id} class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-large-size_1-of-3">
+                    <div class="slds-card slds-m-bottom_medium">
+                        <div class="slds-card__header">
+                            <header class="slds-media slds-media_center slds-has-flexi-truncate">
+                                <div class="slds-media__body">
+                                    <h2 class="slds-card__header-title">
+                                        <span class="slds-text-heading_small">{retailer.name}</span>
+                                    </h2>
+                                    <template if:true={retailer.isPriorityHigh}>
+                                        <lightning-badge label="High Priority" variant="error"></lightning-badge>
+                                    </template>
+                                    <template if:true={retailer.isPriorityMedium}>
+                                        <lightning-badge label="Medium Priority" variant="warning"></lightning-badge>
+                                    </template>
+                                    <template if:true={retailer.isPriorityLow}>
+                                        <lightning-badge label="Low Priority" variant="lightest"></lightning-badge>
+                                    </template>
+                                </div>
+                            </header>
+                        </div>
+                        <div class="slds-card__body slds-card__body_inner">
+                            <div class="slds-grid slds-wrap">
+                                <div class="slds-col slds-size_1-of-2">
+                                    <p class="slds-text-body_small slds-text-color_weak">Location</p>
+                                    <p class="slds-text-body_regular">{retailer.location}</p>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <p class="slds-text-body_small slds-text-color_weak">Account Type</p>
+                                    <p class="slds-text-body_regular">{retailer.accountType}</p>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2 slds-m-top_small">
+                                    <p class="slds-text-body_small slds-text-color_weak">Last Visit</p>
+                                    <p class="slds-text-body_regular">{retailer.lastVisitDate}</p>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2 slds-m-top_small">
+                                    <p class="slds-text-body_small slds-text-color_weak">3M Avg Orders</p>
+                                    <p class="slds-text-body_regular">{retailer.avgOrders3M}</p>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2 slds-m-top_small">
+                                    <p class="slds-text-body_small slds-text-color_weak">Avg Order/Visit</p>
+                                    <p class="slds-text-body_regular">{retailer.avgOrderPerVisit}</p>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2 slds-m-top_small">
+                                    <p class="slds-text-body_small slds-text-color_weak">Visits (3M)</p>
+                                    <p class="slds-text-body_regular">{retailer.visitsCount3M}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="slds-card__footer">
+                            <div class="slds-grid slds-grid_align-spread">
+                                <lightning-button
+                                    label="Schedule Visit"
+                                    variant="brand"
+                                    onclick={handleScheduleVisit}
+                                    data-retailer-id={retailer.id}>
+                                </lightning-button>
+                                <lightning-button
+                                    label="Analytics"
+                                    variant="neutral"
+                                    onclick={handleViewAnalytics}
+                                    data-retailer-id={retailer.id}>
+                                </lightning-button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- Analytics Modal -->
+        <template if:true={showAnalytics}>
+            <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header">
+                        <lightning-button-icon
+                            icon-name="utility:close"
+                            onclick={handleCloseAnalytics}
+                            alternative-text="Close"
+                            title="Close"
+                            class="slds-modal__close">
+                        </lightning-button-icon>
+                        <h2 class="slds-text-heading_medium slds-hyphenate">
+                            {selectedRetailer.name} - Analytics
+                        </h2>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <c-retailer-analytics retailer={selectedRetailer}></c-retailer-analytics>
+                    </div>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
+    </div>
+</template>

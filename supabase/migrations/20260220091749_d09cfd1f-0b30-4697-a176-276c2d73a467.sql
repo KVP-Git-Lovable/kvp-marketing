@@ -1,0 +1,1 @@
+ALTER TYPE public.pm_task_status ADD VALUE IF NOT EXISTS 'overdue';

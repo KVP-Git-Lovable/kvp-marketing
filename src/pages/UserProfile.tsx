@@ -1,0 +1,367 @@
+import React, { useState, useEffect } from 'react';
+import { ACTIVE_PROFILE } from '@/lib/activeUserFilter';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { Loader2, User, Users, Lock, Bell, Briefcase, ShieldCheck } from 'lucide-react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent } from '@/components/ui/card';
+import { UserDistributorsPicker } from '@/components/admin/UserDistributorsPicker';
+import { usePermissions } from '@/hooks/usePermissions';
+
+import { InstagramSocialFeed } from '@/components/profile/InstagramSocialFeed';
+import { ProfileAttachments } from '@/components/profile/ProfileAttachments';
+import { Layout } from '@/components/Layout';
+import { UserFeaturesSection } from '@/components/features/UserFeaturesSection';
+import { FollowersFollowingCard } from '@/components/profile/FollowersFollowingCard';
+import { WorkExperienceSection } from '@/components/profile/about/WorkExperienceSection';
+import { EducationHistorySection } from '@/components/profile/about/EducationHistorySection';
+import { EmergencyContactsSection } from '@/components/profile/about/EmergencyContactsSection';
+import { AspirationsSection } from '@/components/profile/about/AspirationsSection';
+import { OnboardingChecklistSection } from '@/components/profile/about/OnboardingChecklistSection';
+import { AboutViewMode } from '@/components/profile/about/AboutViewMode';
+import { AboutEditMode } from '@/components/profile/about/AboutEditMode';
+import { ProfilePointsBadge } from '@/components/profile/ProfilePointsBadge';
+import { PasswordChangeSection } from '@/components/profile/PasswordChangeSection';
+import { RegionLanguageSettings } from '@/components/profile/RegionLanguageSettings';
+import { CollapsibleSection } from '@/components/profile/CollapsibleSection';
+
+import { PushNotificationSettings } from '@/components/PushNotificationSettings';
+
+
+interface Territory {
+  id: string;
+  name: string;
+}
+
+interface Manager {
+  id: string;
+  full_name: string;
+}
+
+const UserProfile = () => {
+  const { user, userProfile, refreshProfile } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [managers, setManagers] = useState<Manager[]>([]);
+  const { can } = usePermissions();
+  const canManageUsers = can('module_user_management', 'edit');
+  const [territories, setTerritories] = useState<Territory[]>([]);
+  const [isEditMode, setIsEditMode] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    username: '',
+    full_name: '',
+    phone_number: '',
+    recovery_email: '',
+    email: '',
+    monthly_salary: '',
+    daily_da_allowance: '',
+    manager_id: '',
+    hq: '',
+    hq_territory_id: '',
+    date_of_joining: '',
+    date_of_exit: '',
+    address: '',
+    band: '',
+    designation: '',
+    linkedin_url: '',
+    twitter_url: '',
+    instagram_url: '',
+    facebook_url: ''
+  });
+
+  useEffect(() => {
+    if (userProfile && user) {
+      fetchManagers();
+      fetchTerritories();
+      fetchEmployeeData();
+    }
+  }, [userProfile, user]);
+
+  const fetchTerritories = async () => {
+    const { data } = await supabase
+      .from('territories')
+      .select('id, name')
+      .order('name');
+
+    if (data) {
+      setTerritories(data);
+    }
+  };
+
+  const fetchManagers = async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, full_name').match(ACTIVE_PROFILE)
+      .order('full_name');
+
+    if (data) {
+      setManagers(data);
+    }
+  };
+
+  const fetchEmployeeData = async () => {
+    if (!user) return;
+
+    const { data: employeeData } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+
+    // Also fetch profile social links
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('designation, linkedin_url, twitter_url, instagram_url, facebook_url')
+      .eq('id', user.id)
+      .single();
+
+    setFormData({
+      username: userProfile?.username || '',
+      full_name: userProfile?.full_name || '',
+      phone_number: userProfile?.phone_number || '',
+      recovery_email: userProfile?.recovery_email || '',
+      email: user.email || '',
+      monthly_salary: employeeData?.monthly_salary?.toString() || '',
+      daily_da_allowance: employeeData?.daily_da_allowance?.toString() || '',
+      manager_id: employeeData?.manager_id || '',
+      hq: employeeData?.hq || '',
+      hq_territory_id: employeeData?.hq_territory_id || '',
+      date_of_joining: employeeData?.date_of_joining || '',
+      date_of_exit: employeeData?.date_of_exit || '',
+      address: employeeData?.address || '',
+      band: employeeData?.band?.toString() || '',
+      designation: profileData?.designation || '',
+      linkedin_url: profileData?.linkedin_url || '',
+      twitter_url: profileData?.twitter_url || '',
+      instagram_url: profileData?.instagram_url || '',
+      facebook_url: profileData?.facebook_url || ''
+    });
+  };
+
+  const handleProfileUpdate = async () => {
+    if (!user) return;
+
+    setLoading(true);
+    try {
+      // Update profile table
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          username: formData.username,
+          full_name: formData.full_name,
+          phone_number: formData.phone_number,
+          recovery_email: formData.recovery_email
+        })
+        .eq('id', user.id);
+
+      if (profileError) throw profileError;
+
+      // Update employees table
+      const { error: employeeError } = await supabase
+        .from('employees')
+        .upsert({
+          user_id: user.id,
+          monthly_salary: parseFloat(formData.monthly_salary) || 0,
+          daily_da_allowance: parseFloat(formData.daily_da_allowance) || 0,
+          manager_id: formData.manager_id || null,
+          hq: formData.hq,
+          hq_territory_id: formData.hq_territory_id || null,
+          date_of_joining: formData.date_of_joining || null,
+          date_of_exit: formData.date_of_exit || null,
+          address: formData.address
+        });
+
+      // Update profile with designation and social links
+      const { error: profileUpdateError } = await supabase
+        .from('profiles')
+        .update({
+          designation: formData.designation || null,
+          linkedin_url: formData.linkedin_url || null,
+          twitter_url: formData.twitter_url || null,
+          instagram_url: formData.instagram_url || null,
+          facebook_url: formData.facebook_url || null
+        })
+        .eq('id', user.id);
+
+      if (profileUpdateError) throw profileUpdateError;
+
+      if (employeeError) throw employeeError;
+
+      toast({
+        title: "Success",
+        description: "Profile updated successfully!"
+      });
+      
+      setIsEditMode(false);
+      await refreshProfile();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  return (
+    <Layout>
+      <div className="p-3 sm:p-4">
+        <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6">
+          {/* Header with Points */}
+          <div className="relative overflow-hidden rounded-3xl border border-violet-100 dark:border-violet-900/40 bg-gradient-to-br from-indigo-50 via-violet-50 to-sky-50 dark:from-indigo-950/40 dark:via-violet-950/30 dark:to-sky-950/30 p-4 sm:p-5 shadow-sm">
+            <div className="absolute -right-10 -top-12 h-36 w-36 rounded-full bg-violet-200/40 dark:bg-violet-500/10" />
+            <div className="absolute -left-8 -bottom-14 h-32 w-32 rounded-full bg-sky-200/40 dark:bg-sky-500/10" />
+            <div className="relative flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="h-11 w-11 rounded-2xl bg-white dark:bg-white/10 flex items-center justify-center ring-1 ring-violet-200/70 dark:ring-white/10 shadow-sm">
+                  <User className="w-5 h-5 text-violet-600 dark:text-violet-300" />
+                </div>
+                <div>
+                  <h1 className="text-xl sm:text-2xl font-bold text-foreground leading-tight">My Profile</h1>
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 max-w-[16rem] sm:max-w-none">
+                    Your details, preferences & performance
+                  </p>
+                </div>
+              </div>
+              {/* Points Badge - Clickable to Leaderboard */}
+              <div className="shrink-0 rounded-2xl bg-white/80 dark:bg-white/10 px-1 py-0.5 shadow-sm">
+                <ProfilePointsBadge userId={user.id} />
+              </div>
+            </div>
+          </div>
+
+        <Tabs defaultValue="about" className="space-y-4">
+          <TabsList className="w-full grid grid-cols-2 h-auto gap-1 p-1 rounded-2xl bg-muted/70">
+            <TabsTrigger
+              value="about"
+              className="rounded-xl text-xs sm:text-sm py-2 gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-violet-500 data-[state=active]:text-white data-[state=active]:shadow"
+            >
+              <User className="h-4 w-4" />
+              <span>About</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="social"
+              className="rounded-xl text-xs sm:text-sm py-2 gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white data-[state=active]:shadow"
+            >
+              <Users className="h-4 w-4" />
+              <span>Social</span>
+            </TabsTrigger>
+          </TabsList>
+
+          {/* About Tab */}
+          <TabsContent value="about" className="space-y-4">
+            {/* Which distributors this person serves. Read-only to them;
+                editable by whoever may manage users, which the RLS on
+                user_distributors enforces regardless of what is shown. */}
+            {user?.id && (
+              <Card>
+                <CardContent className="p-4">
+                  <UserDistributorsPicker userId={user.id} disabled={!canManageUsers} />
+                </CardContent>
+              </Card>
+            )}
+
+            {/* View/Edit Mode Toggle */}
+            {isEditMode ? (
+              <AboutEditMode
+                formData={formData}
+                setFormData={setFormData}
+                managers={managers}
+                territories={territories}
+                loading={loading}
+                onSave={handleProfileUpdate}
+                onCancel={() => setIsEditMode(false)}
+              />
+            ) : (
+              <AboutViewMode
+                userProfile={userProfile}
+                formData={formData}
+                territories={territories}
+                managers={managers}
+                onEdit={() => setIsEditMode(true)}
+              />
+            )}
+
+            {/* Language, Region, Time Zone & Currency */}
+            <RegionLanguageSettings />
+
+            <CollapsibleSection
+              title="Password & Security"
+              tone="rose"
+              description="Change your password"
+              icon={<Lock className="h-5 w-5" />}
+            >
+              <PasswordChangeSection />
+            </CollapsibleSection>
+
+            <CollapsibleSection
+              title="Notifications"
+              tone="amber"
+              description="Push notification preferences"
+              icon={<Bell className="h-5 w-5" />}
+            >
+              <PushNotificationSettings />
+            </CollapsibleSection>
+
+            <CollapsibleSection
+              title="Career & Background"
+              tone="violet"
+              description="Work experience, education and aspirations"
+              icon={<Briefcase className="h-5 w-5" />}
+            >
+              <div className="space-y-4">
+                <WorkExperienceSection />
+                <EducationHistorySection />
+                <AspirationsSection />
+                <OnboardingChecklistSection />
+              </div>
+            </CollapsibleSection>
+
+            <CollapsibleSection
+              title="Emergency Contacts & Documents"
+              tone="emerald"
+              description="Contacts and uploaded attachments"
+              icon={<ShieldCheck className="h-5 w-5" />}
+            >
+              <div className="space-y-4">
+                <EmergencyContactsSection />
+                <ProfileAttachments />
+              </div>
+            </CollapsibleSection>
+
+            <CollapsibleSection
+              title="Network & Features"
+              tone="sky"
+              description="Followers, following and enabled features"
+              icon={<Users className="h-5 w-5" />}
+            >
+              <div className="space-y-4">
+                <FollowersFollowingCard />
+                <UserFeaturesSection />
+              </div>
+            </CollapsibleSection>
+          </TabsContent>
+
+          {/* Social/Collaboration Tab */}
+          <TabsContent value="social">
+            <InstagramSocialFeed />
+          </TabsContent>
+        </Tabs>
+      </div>
+      </div>
+    </Layout>
+  );
+};
+
+
+export default UserProfile;

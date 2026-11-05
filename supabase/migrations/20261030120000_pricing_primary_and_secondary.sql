@@ -1,0 +1,27 @@
+-- Primary and secondary price books are separate, and must never substitute.
+-- Applied to staging via MCP on 2026-10-30. See the live definitions of:
+--   resolve_price_book_for_retailer    (secondary: target_type='retailer')
+--   resolve_price_book_for_distributor (primary:   target_type='distributor',
+--                                       explicit distributor_price_books
+--                                       assignment wins at precedence 1)
+--   price_for_primary_line             (prefers distributor_price)
+--   catalogue_for_retailer             (price_books.restricts_catalogue)
+
+-- 2026-10-30 (later): a secondary book can be assigned to a distributor, so
+-- its retailers price from it. No new column: distributor_price_books already
+-- links a book to a distributor, and the book's target_type decides whether
+-- that means "this distributor buys at these prices" (primary) or "this
+-- distributor's shops buy at these prices" (secondary). It enters the
+-- retailer precedence at level 2, below a shop-specific book and above
+-- distributor category, matching customer > distributor > category > region
+-- > standard.
+
+-- 2026-10-30 (later still): the full secondary hierarchy with overrides.
+-- price_books.user_id existed but was never consulted, so salesman pricing was
+-- unreachable. resolve_price_book_for_retailer and price_for_order_line now
+-- take the person placing the order, and resolve:
+--   1 shop AND salesman   2 shop   3 salesman   4 the shop's distributor
+--   5 distributor category   6 institutional   7 city   8 beat   9 territory
+--  10 district  11 state  12 zone/region  13 standard
+-- Each level reports applied_because so a screen can say why that price won.
+-- Primary stays distributor-only and separate.

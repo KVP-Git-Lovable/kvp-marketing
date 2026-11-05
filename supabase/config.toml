@@ -1,0 +1,130 @@
+project_id = "aoxdosjkwqyuvccuwhzc"
+
+[functions.meta-oauth-callback]
+verify_jwt = false
+
+[functions.beat-health-insights]
+verify_jwt = false
+
+[functions.admin-get-users]
+verify_jwt = false
+
+[functions.admin-delete-user]
+verify_jwt = false
+
+[functions.admin-create-user]
+verify_jwt = false
+
+[functions.voice-order-status]
+verify_jwt = false
+
+[functions.track-link-click]
+verify_jwt = false
+
+[functions.voice-recent-orders]
+verify_jwt = false
+
+[functions.voice-product-query]
+verify_jwt = false
+
+[functions.voice-place-order]
+verify_jwt = false
+
+[functions.sprint-summary]
+verify_jwt = false
+
+[functions.pm-ai-assistant]
+verify_jwt = false
+
+[functions.scan-bill]
+verify_jwt = false
+
+[functions.set-distributor-portal-password]
+verify_jwt = false
+
+[functions.send-retailer-verification-whatsapp]
+verify_jwt = false
+
+[functions.whatsapp-retailer-verify-inbound]
+verify_jwt = false
+
+[functions.ai-weekly-route-plan]
+verify_jwt = false
+
+[functions.ai-coverage-suggestion]
+verify_jwt = false
+
+[functions.send-retailer-welcome-whatsapp]
+verify_jwt = false
+
+[functions.verify-retailer-call]
+verify_jwt = false
+
+[functions.send-push]
+verify_jwt = false
+
+[functions.copilot-agent]
+verify_jwt = true
+
+[functions.copilot-visit-actions]
+verify_jwt = true
+
+
+[functions.send-retailer-otp]
+verify_jwt = true
+
+[functions.bolna-help-webhook]
+verify_jwt = false
+
+[functions.madad-help-call]
+verify_jwt = false
+
+
+
+[functions.employee-portal-api]
+verify_jwt = false
+
+
+
+
+
+[functions.ai-workflow-run]
+verify_jwt = true
+
+[functions.ai-pitch-suggestions]
+verify_jwt = true
+
+[functions.zoho-sync-customers]
+verify_jwt = false
+
+[functions.ai-agent-builder]
+verify_jwt = true
+
+[functions.send-order-confirmation-whatsapp]
+verify_jwt = false
+
+[functions.webhook-whatsapp]
+verify_jwt = false
+
+
+
+[functions.ambient-order-parser]
+verify_jwt = true
+
+[functions.ambient-mom-parser]
+verify_jwt = true
+
+[functions.compress-historical-invoices]
+verify_jwt = false
+
+[functions.gamification-activity-coach]
+verify_jwt = true
+
+[functions.gamification-overview-writer]
+verify_jwt = true
+
+# The tracker is a third party and cannot present a Supabase JWT. Auth for this
+# endpoint is the provider's X-Fleet-Secret, compared server-side against
+# fleet_api_config.
+[functions.fleet-telematics-webhook]
+verify_jwt = false

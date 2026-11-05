@@ -1,0 +1,169 @@
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+
+const MARKETING_SEGMENT_TYPES = new Set(["marketing_institutional", "marketing_distributor"]);
+
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  journeyId: string;
+  currentName: string;
+  // A journey created before this redesign (or still targeting the
+  // retailers table) keeps its original category selector untouched —
+  // only journeys already on a marketing segment get the new cascading
+  // Database/View selector, so editing an existing retailer journey can
+  // never silently reassign its audience to a marketing database.
+  currentSegmentType: string;
+  currentListViewId: string;
+  currentCategory: string;
+}
+
+export function EditJourneyDetailsDialog({
+  open, onOpenChange, journeyId, currentName, currentSegmentType, currentListViewId, currentCategory,
+}: Props) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("any");
+  const [segmentType, setSegmentType] = useState<string>("marketing_institutional");
+  const [listViewId, setListViewId] = useState<string>("");
+
+  const isMarketingJourney = MARKETING_SEGMENT_TYPES.has(currentSegmentType);
+
+  useEffect(() => {
+    if (!open) return;
+    setName(currentName || "");
+    setCategory(currentCategory || "any");
+    setSegmentType(MARKETING_SEGMENT_TYPES.has(currentSegmentType) ? currentSegmentType : "marketing_institutional");
+    setListViewId(currentListViewId || "");
+  }, [open, currentName, currentCategory, currentSegmentType, currentListViewId]);
+
+  const { data: marketingListViews = [] } = useQuery({
+    queryKey: ["marketing-list-views", segmentType],
+    queryFn: async () => {
+      const databaseType = segmentType === "marketing_institutional" ? "institutional" : "distributor";
+      const { data, error } = await supabase
+        .from("marketing_contact_list_views").select("id, name").eq("database_type", databaseType).order("name");
+      if (error) throw error;
+      return data as Array<{ id: string; name: string }>;
+    },
+    enabled: open && isMarketingJourney,
+  });
+
+  const invoke = async (payload: Record<string, unknown>) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/journey-actions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+      body: JSON.stringify(payload),
+    });
+    const json = await response.json();
+    if (!response.ok) throw new Error(json.error || "Request failed");
+    return json;
+  };
+
+  const audiencePreviewQuery = useQuery({
+    queryKey: ["journey-edit-audience-preview", segmentType, listViewId],
+    queryFn: () => invoke({ action: "preview-audience", segment_type: segmentType, list_view_id: listViewId }),
+    enabled: open && isMarketingJourney && !!listViewId,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: () => invoke(
+      isMarketingJourney
+        ? { action: "update", journey_id: journeyId, name, segment_type: segmentType, list_view_id: listViewId }
+        : { action: "update", journey_id: journeyId, name, filters: category === "any" ? {} : { category } }
+    ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["journeys"] });
+      queryClient.invalidateQueries({ queryKey: ["journey-detail", journeyId] });
+      toast.success("Journey details updated");
+      onOpenChange(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Edit Journey</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label>Name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Journey name" />
+          </div>
+
+          {isMarketingJourney ? (
+            <div className="space-y-3 rounded-lg border p-3">
+              <Label className="text-sm font-medium">Target Audience — Retailer View</Label>
+              <div>
+                <Label className="text-xs text-muted-foreground">Database</Label>
+                <Select value={segmentType} onValueChange={(v) => { setSegmentType(v); setListViewId(""); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="marketing_institutional">Institutional Marketing Database</SelectItem>
+                    <SelectItem value="marketing_distributor">Distributor Marketing Database</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">View</Label>
+                <Select value={listViewId} onValueChange={setListViewId}>
+                  <SelectTrigger><SelectValue placeholder="Select a saved List View" /></SelectTrigger>
+                  <SelectContent>
+                    {marketingListViews.map((lv) => (
+                      <SelectItem key={lv.id} value={lv.id}>{lv.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {marketingListViews.length === 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    No List Views yet — create one from the Marketing Database tabs on the Retailer External Database page.
+                  </p>
+                )}
+              </div>
+              {listViewId && (
+                <div className="rounded-md bg-muted/50 p-2.5 text-sm">
+                  <p className="text-xs text-muted-foreground mb-1">Live preview</p>
+                  <p className="font-medium">
+                    Final audience: <span className="font-bold">
+                      {audiencePreviewQuery.isFetching ? "…" : (audiencePreviewQuery.data?.count ?? 0).toLocaleString()}
+                    </span> unique contacts
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <Label>Target Audience — Retailer View</Label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">All retailers</SelectItem>
+                  <SelectItem value="A">Category A</SelectItem>
+                  <SelectItem value="B">Category B</SelectItem>
+                  <SelectItem value="C">Category C</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button
+            onClick={() => saveMutation.mutate()}
+            disabled={!name.trim() || saveMutation.isPending || (isMarketingJourney && !listViewId)}
+          >
+            {saveMutation.isPending ? "Saving..." : "Save Changes"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

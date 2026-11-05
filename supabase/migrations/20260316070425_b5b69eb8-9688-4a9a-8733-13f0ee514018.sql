@@ -1,0 +1,1 @@
+ALTER TABLE public.user_business_plans ADD COLUMN has_no_target boolean NOT NULL DEFAULT false;

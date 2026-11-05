@@ -1,0 +1,1 @@
+UPDATE retailer_external_db SET state = TRIM(state) WHERE state != TRIM(state);

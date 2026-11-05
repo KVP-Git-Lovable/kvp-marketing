@@ -1,0 +1,1 @@
+ALTER TABLE public.pm_tasks ADD COLUMN IF NOT EXISTS collaborator_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL;

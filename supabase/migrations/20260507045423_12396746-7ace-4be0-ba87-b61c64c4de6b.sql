@@ -1,0 +1,1 @@
+ALTER TABLE public.activity_events ADD COLUMN IF NOT EXISTS comments text;

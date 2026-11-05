@@ -1,0 +1,1 @@
+ALTER TABLE public.activity_events ADD COLUMN activity_name text;

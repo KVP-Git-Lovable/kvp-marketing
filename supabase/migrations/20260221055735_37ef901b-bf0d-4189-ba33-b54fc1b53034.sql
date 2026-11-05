@@ -1,0 +1,1 @@
+ALTER TABLE public.pm_time_logs ADD COLUMN IF NOT EXISTS work_type text;

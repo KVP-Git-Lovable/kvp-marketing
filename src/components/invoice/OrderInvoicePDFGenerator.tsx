@@ -1,0 +1,115 @@
+import { useState } from "react";
+import { applyInvoiceIdentity } from "@/utils/invoiceIdentity";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { generateTemplate4Invoice } from "@/utils/invoiceGenerator";
+import { applyInvoiceWatermark } from "@/utils/invoiceWatermark";
+
+interface OrderInvoicePDFGeneratorProps {
+  orderId: string;
+  invoiceNumber: string;
+  className?: string;
+}
+
+/**
+ * Generates invoice PDF directly from order data (no invoices table record needed).
+ * Used for direct orders where invoice_number is on the order but no invoices row exists.
+ */
+export const OrderInvoicePDFGenerator = ({
+  orderId,
+  invoiceNumber,
+  className,
+}: OrderInvoicePDFGeneratorProps) => {
+  const [loading, setLoading] = useState(false);
+
+  const generatePDF = async () => {
+    setLoading(true);
+    try {
+      // Fetch order with items
+      const { data: order, error } = await supabase
+        .from("orders")
+        .select("*, order_items(*)")
+        .eq("id", orderId)
+        .single();
+
+      if (error || !order) throw error || new Error("Order not found");
+
+      // Fetch company
+      const { data: companyRow } = await supabase
+        .from("companies")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      // A shop that belongs to a distributor is billed in that distributor's
+      // name, not ours.
+      const company = await applyInvoiceIdentity(companyRow as any, order.retailer_id);
+
+      // Fetch retailer
+      let retailer: any = {};
+      if (order.retailer_id) {
+        const { data: retailerData } = await supabase
+          .from("retailers")
+          .select("name, address, phone, gst_number")
+          .eq("id", order.retailer_id)
+          .single();
+        retailer = retailerData || {};
+      }
+
+      const cartItems = (order.order_items || []).map((it: any) => ({
+        name: it.product_name,
+        product_name: it.product_name,
+        quantity: Number(it.quantity) || 0,
+        price: Number(it.rate) || 0,
+        rate: Number(it.rate) || 0,
+        total: Number(it.total) || 0,
+        hsn_code: it.hsn_code || "-",
+        unit: it.unit || "Piece",
+        base_unit: it.base_unit || it.unit || "Piece",
+      }));
+
+      // Invoice date must reflect the order's business date (order_date), not
+      // "today" — critical for backdated orders.
+      const orderDateStr = typeof order.order_date === 'string' && order.order_date ? order.order_date.slice(0, 10) : null;
+      const displayInvoiceDate = orderDateStr
+        ? new Date(`${orderDateStr}T00:00:00`).toLocaleDateString("en-GB")
+        : new Date(order.created_at).toLocaleDateString("en-GB");
+
+      const rawBlob = await generateTemplate4Invoice({
+        orderId: invoiceNumber,
+        company: company || {},
+        retailer,
+        cartItems,
+        displayInvoiceDate,
+      });
+      const blob = await applyInvoiceWatermark(rawBlob, { invoiceNumber });
+
+      const filename = `${invoiceNumber}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success("Invoice downloaded");
+    } catch (err: any) {
+      console.error("Invoice generation failed", err);
+      toast.error(err?.message || "Failed to generate invoice");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button onClick={generatePDF} disabled={loading} className={className} variant="outline" size="sm">
+      <Download className="mr-1.5 h-3.5 w-3.5" />
+      {loading ? "Processing..." : "Download"}
+    </Button>
+  );
+};

@@ -1,0 +1,135 @@
+<template>
+    <div class="slds-grid slds-wrap slds-gutters">
+        <!-- Performance Overview -->
+        <div class="slds-col slds-size_1-of-1">
+            <div class="slds-card slds-m-bottom_medium">
+                <div class="slds-card__header">
+                    <h3 class="slds-card__header-title">Performance Overview</h3>
+                </div>
+                <div class="slds-card__body slds-card__body_inner">
+                    <div class="slds-grid slds-wrap slds-gutters">
+                        <div class="slds-col slds-size_1-of-3">
+                            <div class="slds-text-align_center">
+                                <h4 class="slds-text-heading_large slds-text-color_success">{formattedRevenue}</h4>
+                                <p class="slds-text-body_small">3M Revenue</p>
+                            </div>
+                        </div>
+                        <div class="slds-col slds-size_1-of-3">
+                            <div class="slds-text-align_center">
+                                <h4 class="slds-text-heading_large slds-text-color_brand">{retailer.metrics.orders}</h4>
+                                <p class="slds-text-body_small">Total Orders</p>
+                            </div>
+                        </div>
+                        <div class="slds-col slds-size_1-of-3">
+                            <div class="slds-text-align_center">
+                                <h4 class="slds-text-heading_large slds-text-color_warning">{retailer.metrics.growth}%</h4>
+                                <p class="slds-text-body_small">Growth Rate</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Products -->
+        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+            <div class="slds-card slds-m-bottom_medium">
+                <div class="slds-card__header">
+                    <h3 class="slds-card__header-title">Top Products (3M)</h3>
+                </div>
+                <div class="slds-card__body slds-card__body_inner">
+                    <template for:each={topProducts} for:item="product">
+                        <div key={product.name} class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                            <div class="slds-col">
+                                <p class="slds-text-body_regular">{product.name}</p>
+                                <p class="slds-text-body_small slds-text-color_weak">{product.quantity} units</p>
+                            </div>
+                            <div class="slds-col slds-no-flex">
+                                <p class="slds-text-body_regular">{product.revenue}</p>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- Enrolled Schemes -->
+        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+            <div class="slds-card slds-m-bottom_medium">
+                <div class="slds-card__header">
+                    <h3 class="slds-card__header-title">Enrolled Schemes</h3>
+                </div>
+                <div class="slds-card__body slds-card__body_inner">
+                    <template for:each={enrolledSchemes} for:item="scheme">
+                        <div key={scheme.name} class="slds-m-bottom_small">
+                            <div class="slds-grid slds-grid_align-spread">
+                                <p class="slds-text-body_regular">{scheme.name}</p>
+                                <template if:true={scheme.isActive}>
+                                    <lightning-badge label="Active" variant="success"></lightning-badge>
+                                </template>
+                                <template if:false={scheme.isActive}>
+                                    <lightning-badge label="Expired" variant="error"></lightning-badge>
+                                </template>
+                            </div>
+                            <p class="slds-text-body_small slds-text-color_weak">Enrolled: {scheme.enrolledDate}</p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- Products Not Being Bought -->
+        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+            <div class="slds-card slds-m-bottom_medium">
+                <div class="slds-card__header">
+                    <h3 class="slds-card__header-title">Opportunity Products</h3>
+                </div>
+                <div class="slds-card__body slds-card__body_inner">
+                    <template for:each={opportunityProducts} for:item="product">
+                        <div key={product.name} class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                            <div class="slds-col">
+                                <p class="slds-text-body_regular">{product.name}</p>
+                                <p class="slds-text-body_small slds-text-color_weak">{product.category}</p>
+                            </div>
+                            <div class="slds-col slds-no-flex">
+                                <p class="slds-text-body_regular slds-text-color_success">{product.potential}</p>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- Retailer Potential -->
+        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+            <div class="slds-card">
+                <div class="slds-card__header">
+                    <h3 class="slds-card__header-title">Retailer Potential</h3>
+                </div>
+                <div class="slds-card__body slds-card__body_inner">
+                    <div class="slds-grid slds-wrap">
+                        <div class="slds-col slds-size_1-of-1 slds-m-bottom_medium">
+                            <div class="slds-text-align_center">
+                                <h4 class="slds-text-heading_large slds-text-color_brand">{retailerPotential.score}/100</h4>
+                                <p class="slds-text-body_small">Overall Score</p>
+                            </div>
+                        </div>
+                        <template for:each={retailerPotential.factors} for:item="factor">
+                            <div key={factor.name} class="slds-col slds-size_1-of-1 slds-m-bottom_small">
+                                <div class="slds-grid slds-grid_align-spread">
+                                    <p class="slds-text-body_regular">{factor.name}</p>
+                                    <p class="slds-text-body_regular">{factor.score}/10</p>
+                                </div>
+                                <div class="slds-progress-bar slds-progress-bar_x-small slds-m-top_xx-small">
+                                    <span class="slds-progress-bar__value" style={factor.progressStyle}>
+                                        <span class="slds-assistive-text">{factor.score}/10</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>

@@ -1,0 +1,25 @@
+{
+  "name": "QuickApp",
+  "short_name": "QuickApp",
+  "description": "AI-powered field sales platform for modern commerce",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "categories": ["business", "productivity"],
+  "background_color": "#ffffff",
+  "theme_color": "#007BFF",
+  "icons": [
+    {
+      "src": "/icons/app-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/app-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

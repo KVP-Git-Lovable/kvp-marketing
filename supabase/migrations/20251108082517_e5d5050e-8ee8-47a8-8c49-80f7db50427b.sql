@@ -1,0 +1,25 @@
+-- Add missing feature flags for all app features
+INSERT INTO public.feature_flags (feature_key, feature_name, description, category, is_enabled) VALUES
+  ('today_summary', 'Today Summary', 'View daily activity summary and performance', 'Reports', true),
+  ('sales_coach', 'Sales Coach', 'AI-powered sales coaching and tips', 'AI', true),
+  ('employee_onboarding', 'Employee Onboarding', 'Employee onboarding process and profile setup', 'HR', true),
+  ('employee_360', 'Employee 360', 'Comprehensive employee profile and performance view', 'HR', true),
+  ('admin_controls', 'Admin Controls', 'Master admin control panel', 'Admin', true),
+  ('admin_dashboard', 'Admin Dashboard', 'Admin overview dashboard with user management', 'Admin', true),
+  ('operations', 'Operations', 'Operations management and monitoring', 'Operations', true),
+  ('attendance_management', 'Attendance Management', 'Admin view for managing team attendance', 'Admin', true),
+  ('admin_expense_management', 'Admin Expense Management', 'Admin approval and management of expenses', 'Admin', true),
+  ('feedback_management', 'Feedback Management', 'View and manage customer feedback', 'Support', true),
+  ('distributor_mapping', 'Distributor Mapping', 'Map distributors to retailers and territories', 'Sales', true),
+  ('distributor_master', 'Distributor Master', 'Master distributor database and management', 'Sales', true),
+  ('territories_distributors', 'Territories & Distributors', 'Manage sales territories and distributor assignments', 'Admin', true),
+  ('beat_planning', 'Beat Planning', 'Plan and optimize sales beats', 'Sales', true),
+  ('retailer_detail', 'Retailer Detail', 'Detailed retailer information and history', 'Sales', true),
+  ('user_roles', 'User Roles', 'Manage user roles and permissions', 'Admin', true),
+  ('user_profile', 'User Profile', 'User profile view and settings', 'General', true),
+  ('complete_profile', 'Complete Profile', 'Profile completion workflow', 'General', true),
+  ('leaderboard', 'Leaderboard', 'Sales performance leaderboard', 'Reports', true),
+  ('visit_detail', 'Visit Detail', 'Detailed visit information and history', 'Sales', true),
+  ('beat_detail', 'Beat Detail', 'Detailed beat information and analytics', 'Sales', true),
+  ('product_catalog', 'Product Catalog', 'Browse and manage product catalog', 'Inventory', true)
+ON CONFLICT (feature_key) DO NOTHING;

@@ -1,0 +1,315 @@
+
+-- Seed ALL permission objects for System Administrator profile
+-- Complete list from permissionModules.ts getAllModulePermissionItems()
+INSERT INTO profile_object_permissions (profile_id, object_name, can_read, can_create, can_edit, can_delete, can_view_all, can_modify_all)
+VALUES
+  -- Admin Panel > Admin Dashboard
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_dashboard_overview', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_user_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_user_create', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_user_edit', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_user_delete', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_user_activate_deactivate', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_user_reset_password', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_user_hierarchy', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_approver_management', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_security_roles_display', true, true, true, true, true, true),
+  -- Admin Panel > Price Book
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_price_book_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_price_book_create', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_price_book_edit', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_price_book_delete', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_price_book_assignment', true, true, true, true, true, true),
+  -- Admin Panel > Attendance
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_attendance_live_monitoring', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_attendance_leave_approvals', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_attendance_regularization_approvals', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_attendance_holiday_management', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_attendance_leave_balances', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_attendance_policy_config', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_attendance_working_days', true, true, true, true, true, true),
+  -- Admin Panel > Product Management
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_product_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_product_create', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_product_edit', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_product_delete', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_product_categories', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_product_bulk_import', true, true, true, true, true, true),
+  -- Admin Panel > Scheme Master
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_scheme_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_scheme_create', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_scheme_edit', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_scheme_delete', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_scheme_applicability', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_scheme_policy_config', true, true, true, true, true, true),
+  -- Admin Panel > Vendor Management
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_vendor_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_vendor_create', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_vendor_edit', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_vendor_approvals', true, true, true, true, true, true),
+  -- Admin Panel > Territories & Distributors
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_territory_management', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_distributor_assignment', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_region_management', true, true, true, true, true, true),
+  -- Admin Panel > Expense Management
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_expense_claims_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_expense_approvals', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_expense_analytics', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_expense_policy_config', true, true, true, true, true, true),
+  -- Admin Panel > Feedback Management
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_feedback_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_competition_insights', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_branding_requests', true, true, true, true, true, true),
+  -- Admin Panel > Operations
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_operations_dashboard', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_checkin_monitoring', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_order_monitoring', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_stock_monitoring', true, true, true, true, true, true),
+  -- Admin Panel > GPS Track Management
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_gps_live_location', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_gps_journey_playback', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_gps_team_tracking', true, true, true, true, true, true),
+  -- Admin Panel > Retail Management
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_retailer_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_retailer_verification', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_retailer_photo_update', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_retailer_territory_assignment', true, true, true, true, true, true),
+  -- Admin Panel > Van Sales
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_van_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_van_create', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_van_edit', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_van_driver_assignment', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_van_stock_view', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_van_opening_grn_edits', true, true, true, true, true, true),
+  -- Admin Panel > Security & Access
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_security_profiles', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_profile_permissions', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_user_specific_permissions', true, true, true, true, true, true),
+  -- Admin Panel > Feature Management
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_feature_flags', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_feature_toggle', true, true, true, true, true, true),
+  -- Admin Panel > Gamification
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_gamification_config', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_badges_management', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_rewards_management', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_redemption_management', true, true, true, true, true, true),
+  -- Admin Panel > Retailer Loyalty
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_loyalty_programs', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_loyalty_points', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_loyalty_redemptions', true, true, true, true, true, true),
+  -- Admin Panel > Company Profile
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_company_details', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_bank_information', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_header_branding', true, true, true, true, true, true),
+  -- Admin Panel > Invoice Management
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_invoice_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_invoice_create', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_invoice_templates', true, true, true, true, true, true),
+  -- Admin Panel > Credit Management
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_credit_scoring_config', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_credit_limits', true, true, true, true, true, true),
+  -- Admin Panel > Notification Setup
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_notification_templates', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_notification_schedules', true, true, true, true, true, true),
+  -- Admin Panel > Recycle Bin
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_recycle_bin_settings', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_permanent_deletion_logs', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_restore_deleted_items', true, true, true, true, true, true),
+  -- Admin Panel > Distributor Portal
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_portal_users', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_portal_orders', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_portal_inventory', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_portal_claims', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_portal_support', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_portal_ideas', true, true, true, true, true, true),
+  -- Admin Panel > Target vs Actual
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_target_setting', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_target_tracking', true, true, true, true, true, true),
+  -- Admin Panel > Hierarchy Targets
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_hierarchy_target_setup', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_target_cascade', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'admin_allocation_methods', true, true, true, true, true, true),
+  -- Attendance
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'attendance_check_in_out', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'attendance_face_verification', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'attendance_leave_applications', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'attendance_regularization_requests', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'attendance_holiday_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'attendance_timeline_view', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'attendance_journey_map', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'attendance_statistics', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'attendance_photo_capture', true, true, true, true, true, true),
+  -- My Visit > Auto Plan
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_auto_plan_view', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_auto_plan_generate', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_auto_plan_edit', true, true, true, true, true, true),
+  -- My Visit > All Beat
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_all_beat_view', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_all_beat_select', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_all_beat_retailers', true, true, true, true, true, true),
+  -- My Visit > Retailers
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_retailer_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_retailer_check_in', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_retailer_order_entry', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_retailer_no_order', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_retailer_create_visit', true, true, true, true, true, true),
+  -- My Visit > Summary
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_summary_view', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_summary_export', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_summary_insights', true, true, true, true, true, true),
+  -- My Visit > Timeline
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_timeline_view', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_timeline_details', true, true, true, true, true, true),
+  -- My Visit > GPS Track
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_gps_track_view', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_gps_track_playback', true, true, true, true, true, true),
+  -- My Visit > Van Stock
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_van_stock_view', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_van_stock_manage', true, true, true, true, true, true),
+  -- My Visit > Activity
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_activity_view', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_activity_log', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_activity_sync', true, true, true, true, true, true),
+  -- My Visit > Today's Progress
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_todays_progress_view', true, true, true, true, true, true),
+  -- My Visit > Points / AI
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_points_gamification', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'visit_ai_recommendations', true, true, true, true, true, true),
+  -- All Retailers
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'retailer_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'retailer_add', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'retailer_detail', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'retailer_category_filter', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'retailer_beat_assignment', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'retailer_credit_score', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'retailer_order_history', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'retailer_analytics', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'retailer_bulk_import', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'retailer_location_map', true, true, true, true, true, true),
+  -- My Target
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'target_overview', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'target_period_selection', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'target_achievement_percentage', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'target_territory_performance', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'target_beat_performance', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'target_retailer_performance', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'target_ai_recommendations', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'target_shortfall_analysis', true, true, true, true, true, true),
+  -- Performance
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'performance_overall', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'performance_territory_breakdown', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'performance_beat_breakdown', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'performance_retailer_breakdown', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'performance_period_comparison', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'performance_trend_analysis', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'performance_leaderboard', true, true, true, true, true, true),
+  -- Analytics
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'analytics_business_summary', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'analytics_beat_details', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'analytics_retailer_details', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'analytics_order_details', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'analytics_product_breakdown', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'analytics_pending_payments', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'analytics_user_filter', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'analytics_date_range_picker', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'analytics_performance_calendar', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'analytics_leaderboard', true, true, true, true, true, true),
+  -- Institutional Sales
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'institutional_dashboard', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'institutional_leads', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'institutional_accounts', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'institutional_contacts', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'institutional_opportunities', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'institutional_quotes', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'institutional_order_commitments', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'institutional_invoices', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'institutional_price_books', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'institutional_collections', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'institutional_products', true, true, true, true, true, true),
+  -- Distributor Master
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'distributor_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'distributor_add', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'distributor_detail', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'distributor_edit', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'distributor_partnership_status', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'distributor_fleet_size', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'distributor_coverage_area', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'distributor_retailer_mapping', true, true, true, true, true, true),
+  -- Primary Orders
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'primary_order_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'primary_order_status', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'primary_order_create', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'primary_order_details', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'primary_order_transporter_info', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'primary_order_dispatch_date', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'primary_order_inventory_sync', true, true, true, true, true, true),
+  -- Territories
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'territory_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'territory_detail', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'territory_assignment', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'territory_region_management', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'territory_coverage_statistics', true, true, true, true, true, true),
+  -- GPS Track
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'gps_live_tracking', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'gps_journey_playback', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'gps_visit_statistics', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'gps_distance_traveled', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'gps_time_analytics', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'gps_team_status', true, true, true, true, true, true),
+  -- My Beats
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'beat_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'beat_create', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'beat_detail', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'beat_schedule', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'beat_analytics', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'beat_retailer_assignment', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'beat_travel_allowance', true, true, true, true, true, true),
+  -- Competition Master
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'competition_competitor_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'competition_competitor_detail', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'competition_sales_team_size', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'competition_regional_presence', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'competition_sku_comparison', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'competition_swot_analysis', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'competition_news_articles', true, true, true, true, true, true),
+  -- Check Schemes
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'scheme_active_schemes', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'scheme_types', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'scheme_validity_tracking', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'scheme_details', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'scheme_applicability', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'scheme_tiered_offers', true, true, true, true, true, true),
+  -- My Expenses
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'expense_beat_allowance', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'expense_claims', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'expense_claim_history', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'expense_approval_status', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'expense_distance_calculation', true, true, true, true, true, true),
+  -- Gamification
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'gamification_leaderboard', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'gamification_badges', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'gamification_rewards', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'gamification_redemption', true, true, true, true, true, true),
+  -- Packing List
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'packing_list_view', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'packing_list_create', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'packing_list_manage', true, true, true, true, true, true),
+  -- My Deliveries
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'delivery_list', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'delivery_detail', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'delivery_status_update', true, true, true, true, true, true),
+  -- Recycle Bin
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'recycle_view', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'recycle_restore', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'recycle_permanent_delete', true, true, true, true, true, true),
+  -- Competency
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'competency_dashboard', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'competency_detail', true, true, true, true, true, true),
+  ('3385dd99-c4f7-455b-94d7-c7b5105565ce', 'competency_team', true, true, true, true, true, true)
+ON CONFLICT (profile_id, object_name) DO UPDATE SET
+  can_read = true,
+  can_create = true,
+  can_edit = true,
+  can_delete = true,
+  can_view_all = true,
+  can_modify_all = true;

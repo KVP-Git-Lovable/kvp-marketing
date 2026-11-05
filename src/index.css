@@ -1,0 +1,475 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* KVP Field Sales AI Design System - Matching Corporate Branding */
+
+@layer base {
+  :root {
+    /* KVP Corporate Colors - Light Mode */
+    --background: 0 0% 100%;
+    --foreground: 220 39% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 39% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 39% 11%;
+
+    /* KVP Navy Blue Primary - matching corporate identity */
+    --primary: 220 39% 11%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 220 25% 25%;
+    --primary-dark: 220 50% 8%;
+
+    /* KVP Gold/Bronze Accent Colors */
+    --accent-gold: 35 65% 55%;
+    --accent-gold-foreground: 220 39% 11%;
+    --accent-bronze: 30 45% 65%;
+    --accent-bronze-foreground: 220 39% 11%;
+
+    --secondary: 210 40% 98%;
+    --secondary-foreground: 220 39% 25%;
+
+    --muted: 210 40% 98%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 210 40% 96%;
+    --accent-foreground: 220 39% 11%;
+
+    /* Status colors matching KVP theme */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 35 65% 55%;
+    --warning-foreground: 220 39% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 220 39% 11%;
+
+    /* Beat coordinator status colors */
+    --beat-assigned: 221 83% 53%;
+    --beat-served: 142 71% 45%;
+    --beat-stale: 38 92% 50%;
+    --beat-uncovered: 0 84% 60%;
+    --beat-shared: 262 83% 58%;
+    --beat-missed: 0 84% 55%;
+    --beat-partial: 38 92% 50%;
+
+    /* KVP Corporate Gradient - Navy to Gold */
+    --gradient-primary: linear-gradient(135deg, hsl(220 39% 11%), hsl(220 25% 25%), hsl(35 65% 55%));
+    --gradient-subtle: linear-gradient(180deg, hsl(0 0% 100%), hsl(210 40% 98%));
+    --gradient-hero: linear-gradient(135deg, hsl(220 39% 11%) 0%, hsl(220 30% 20%) 35%, hsl(30 45% 65%) 100%);
+    
+    /* Professional shadows */
+    --shadow-card: 0 4px 12px -2px hsl(220 39% 11% / 0.08), 0 8px 24px -4px hsl(220 39% 11% / 0.04);
+    --shadow-button: 0 2px 6px 0 hsl(220 39% 11% / 0.12), 0 2px 4px 0 hsl(220 39% 11% / 0.08);
+    --shadow-hero: 0 25px 50px -12px hsl(220 39% 11% / 0.25);
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 220 39% 11%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 35 65% 55%;
+    --sidebar-primary-foreground: 220 39% 11%;
+    --sidebar-accent: 220 25% 25%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 25% 25%;
+    --sidebar-ring: 35 65% 55%;
+
+    /* Copilot chrome: neutral black-to-grey, independent of success colors. */
+    --copilot-chrome-start: 0 0% 3%;
+    --copilot-chrome-mid: 220 5% 11%;
+    --copilot-chrome-end: 220 4% 22%;
+    --copilot-card: 0 0% 100% / 0.07;
+    --copilot-card-hover: 0 0% 100% / 0.11;
+
+    /* Copilot insight ticker: creamy white to soft yellow */
+    --copilot-ticker-start: 48 100% 99%;
+    --copilot-ticker-mid: 48 92% 94%;
+    --copilot-ticker-end: 45 90% 86%;
+    --copilot-ticker-border: 45 60% 78%;
+    --copilot-ticker-label: 219 79% 42%;
+    --copilot-ticker-metric: 22 62% 30%;
+    --copilot-ticker-name: 0 0% 8%;
+
+  }
+
+  .dark {
+    /* KVP Dark Mode */
+    --background: 220 39% 11%;
+    --foreground: 0 0% 98%;
+
+    --card: 220 35% 15%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 220 35% 15%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 35 65% 55%;
+    --primary-foreground: 220 39% 11%;
+
+    --secondary: 220 35% 15%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 220 35% 15%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 220 30% 20%;
+    --accent-foreground: 35 65% 55%;
+
+    --success: 142 76% 46%;
+    --success-foreground: 220 39% 11%;
+    --warning: 35 65% 65%;
+    --warning-foreground: 220 39% 11%;
+    --destructive: 0 84% 70%;
+    --destructive-foreground: 220 39% 11%;
+
+    --border: 220 30% 20%;
+    --input: 220 30% 20%;
+    --ring: 35 65% 55%;
+
+    /* Dark mode gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(35 65% 55%), hsl(30 45% 65%));
+    --gradient-subtle: linear-gradient(180deg, hsl(220 39% 11%), hsl(220 35% 15%));
+    --gradient-hero: linear-gradient(135deg, hsl(220 39% 11%) 0%, hsl(220 30% 20%) 35%, hsl(35 65% 55%) 100%);
+    
+    /* Dark shadows */
+    --shadow-card: 0 4px 12px -2px hsl(0 0% 0% / 0.3), 0 8px 24px -4px hsl(0 0% 0% / 0.15);
+    --shadow-button: 0 2px 6px 0 hsl(0 0% 0% / 0.2), 0 2px 4px 0 hsl(0 0% 0% / 0.12);
+
+    --sidebar-background: 220 35% 15%;
+    --sidebar-foreground: 215 20% 65%;
+    --sidebar-primary: 35 65% 55%;
+    --sidebar-primary-foreground: 220 39% 11%;
+    --sidebar-accent: 220 30% 20%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 220 30% 20%;
+    --sidebar-ring: 35 65% 55%;
+
+    --copilot-chrome-start: 0 0% 2%;
+    --copilot-chrome-mid: 220 5% 9%;
+    --copilot-chrome-end: 220 4% 18%;
+    --copilot-card: 0 0% 100% / 0.07;
+    --copilot-card-hover: 0 0% 100% / 0.12;
+
+    --copilot-ticker-start: 45 40% 92%;
+    --copilot-ticker-mid: 46 55% 86%;
+    --copilot-ticker-end: 44 60% 78%;
+    --copilot-ticker-border: 45 40% 60%;
+    --copilot-ticker-label: 219 79% 32%;
+    --copilot-ticker-metric: 22 62% 26%;
+    --copilot-ticker-name: 0 0% 8%;
+
+  }
+}
+
+@layer components {
+  .copilot-chrome {
+    background: linear-gradient(145deg, hsl(var(--copilot-chrome-start)), hsl(var(--copilot-chrome-mid)) 55%, hsl(var(--copilot-chrome-end)));
+  }
+
+  .copilot-action {
+    background: linear-gradient(135deg, hsl(var(--copilot-chrome-start)), hsl(var(--copilot-chrome-end)));
+  }
+
+  .copilot-ticker {
+    background: linear-gradient(
+      100deg,
+      hsl(var(--copilot-ticker-start)),
+      hsl(var(--copilot-ticker-mid)) 55%,
+      hsl(var(--copilot-ticker-end))
+    );
+    border-bottom: 1px solid hsl(var(--copilot-ticker-border));
+  }
+
+
+  .copilot-insight-card,
+  .copilot-question-card {
+    border: 1px solid hsl(0 0% 100% / 0.1);
+    border-radius: 0.5rem;
+    background: hsl(var(--copilot-card));
+  }
+
+  .copilot-question-card:hover {
+    background: hsl(var(--copilot-card-hover));
+  }
+
+  /* Today Summary — light, modern polish */
+  .today-summary {
+    background:
+      radial-gradient(1200px 500px at 10% -10%, hsl(220 90% 96%) 0%, transparent 60%),
+      radial-gradient(900px 400px at 100% 0%, hsl(35 90% 95%) 0%, transparent 55%),
+      linear-gradient(180deg, hsl(210 40% 99%), hsl(0 0% 100%));
+  }
+  .today-summary .shadow-card {
+    box-shadow:
+      0 1px 2px hsl(220 39% 11% / 0.04),
+      0 8px 24px -12px hsl(220 39% 11% / 0.10);
+    border-color: hsl(220 20% 92%);
+    border-radius: 14px;
+    background: hsl(0 0% 100%);
+  }
+  .today-summary .ts-hero {
+    position: relative;
+    overflow: hidden;
+    background:
+      linear-gradient(135deg, hsl(0 0% 100%) 0%, hsl(210 40% 99%) 100%);
+    border: 1px solid hsl(220 20% 92%);
+  }
+  .today-summary .ts-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: linear-gradient(180deg, hsl(220 39% 25%), hsl(35 80% 55%));
+  }
+  .today-summary h3, .today-summary h2 {
+    font-family: 'Sora', sans-serif;
+  }
+}
+
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  /* Root HTML element - set safe area CSS variables */
+  html {
+    /* Define safe area insets as CSS variables for consistent use */
+    --sat: env(safe-area-inset-top, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+    
+    /* Ensure full viewport height */
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Manrope', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
+
+    /* Full height with safe area consideration */
+    min-height: 100%;
+    height: 100%;
+    overflow: auto;
+
+    /* Add padding for safe areas on sides only - top/bottom handled by components */
+    padding-left: var(--sal);
+    padding-right: var(--sar);
+
+    /* Prevent overscroll bounce on iOS */
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Sora', 'Manrope', 'Inter', sans-serif;
+    letter-spacing: -0.01em;
+  }
+
+  #root {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* KVP Typography Enhancements */
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    letter-spacing: -0.025em;
+  }
+
+  .gradient-text {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Safe area utility classes */
+  .safe-area-top {
+    padding-top: var(--sat);
+  }
+  
+  .safe-area-bottom {
+    padding-bottom: var(--sab);
+  }
+  
+  .safe-area-left {
+    padding-left: var(--sal);
+  }
+  
+  .safe-area-right {
+    padding-right: var(--sar);
+  }
+  
+  /* Fixed elements need margin-top for safe area */
+  .fixed-safe-top {
+    top: var(--sat);
+  }
+  
+  .fixed-safe-bottom {
+    bottom: var(--sab);
+  }
+
+  /* Safe area top spacer - covers status bar area with dark background */
+  .safe-area-top-spacer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--sat);
+    background-color: hsl(var(--primary));
+    z-index: 9999;
+  }
+
+  /* Safe area bottom spacer - covers navigation bar area */
+  .safe-area-bottom-spacer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--sab);
+    background-color: hsl(var(--background));
+    z-index: 9999;
+  }
+
+  /* Navbar positioning below safe area */
+  .navbar-safe-area {
+    position: fixed;
+    top: var(--sat);
+    left: 0;
+    right: 0;
+    z-index: 60;
+  }
+
+  /* Main content area - ensure it scrolls under fixed navbar */
+  .safe-area-main {
+    position: relative;
+    z-index: 1;
+    padding-bottom: calc(5rem + var(--sab));
+    min-height: 0;
+  }
+
+  /* Navbar spacer to prevent content from going under navbar */
+  .navbar-spacer {
+    height: calc(3.5rem + var(--sat));
+  }
+
+  /* Menu Sheet positioned below the navbar */
+  .menu-below-navbar {
+    top: calc(3.5rem + var(--sat)) !important;
+    height: calc(100% - 3.5rem - var(--sat)) !important;
+  }
+
+  /* Sticky header with safe area - for pages without Layout */
+  .sticky-header-safe {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+
+  /* Page container with safe area top - for pages without Layout */
+  .page-safe-area {
+    padding-top: var(--sat);
+  }
+
+  /* Full page container with safe areas - for standalone pages */
+  .standalone-page {
+    min-height: 100vh;
+    padding-top: var(--sat);
+    padding-bottom: var(--sab);
+  }
+
+  /* Safe area top overlay - covers status bar for standalone pages */
+  .standalone-page::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--sat);
+    background-color: hsl(var(--primary));
+    z-index: 9999;
+  }
+
+/* Global safe area top cover - protects ALL pages */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top, 0px);
+  background-color: hsl(var(--primary));
+  z-index: 99999;
+  pointer-events: none;
+}
+
+/* Global safe area bottom cover */
+body::after {
+  content: '';
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-bottom, 0px);
+  background-color: hsl(var(--background));
+  z-index: 99999;
+  pointer-events: none;
+}
+
+
+  /* Safe area container for full app */
+  .safe-area-container {
+    padding-top: var(--sat);
+  }
+
+  /* Always visible scrollbars for tables on mobile */
+  .scrollbar-always-visible {
+    overflow-x: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .scrollbar-always-visible::-webkit-scrollbar {
+    height: 12px;
+    width: 8px;
+  }
+  
+  .scrollbar-always-visible::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 6px;
+  }
+  
+  .scrollbar-always-visible::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.4);
+    border-radius: 6px;
+    border: 2px solid hsl(var(--muted));
+  }
+  
+  .scrollbar-always-visible::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.6);
+  }
+
+  /* Firefox scrollbar styling */
+  .scrollbar-always-visible {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.4) hsl(var(--muted));
+  }
+}
+
+@layer utilities {
+  .font-pixel {
+    font-family: 'Press Start 2P', 'Courier New', monospace;
+    letter-spacing: 0.03em;
+    line-height: 1.6;
+  }
+}

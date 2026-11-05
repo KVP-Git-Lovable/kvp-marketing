@@ -1,0 +1,8 @@
+ALTER TABLE public.activity_events
+  ADD COLUMN IF NOT EXISTS event_name TEXT,
+  ADD COLUMN IF NOT EXISTS description TEXT,
+  ADD COLUMN IF NOT EXISTS landmark TEXT,
+  ADD COLUMN IF NOT EXISTS budget NUMERIC,
+  ADD COLUMN IF NOT EXISTS sales_target NUMERIC,
+  ADD COLUMN IF NOT EXISTS expected_footfall TEXT,
+  ADD COLUMN IF NOT EXISTS sales_reps UUID[] DEFAULT '{}'::uuid[];
