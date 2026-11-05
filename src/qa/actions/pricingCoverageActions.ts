@@ -10,7 +10,7 @@
 import type { QATestAction } from '@/qa/types';
 import { goTo } from '@/qa/automation/navigate';
 import { waitForElement } from '@/qa/automation/uiActions';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/db';
 import { table } from '@/lib/tableRouter';
 
 function parseMoney(text: string | null | undefined): number {

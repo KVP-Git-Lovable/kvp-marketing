@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Search, Star, Loader2, Building2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/integrations/supabase/db';
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 

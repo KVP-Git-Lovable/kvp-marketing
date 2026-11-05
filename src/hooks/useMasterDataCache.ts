@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/db';
 import { offlineStorage, STORES } from '@/lib/offlineStorage';
 import { useConnectivity } from './useConnectivity';
 import { useAuth } from './useAuth';

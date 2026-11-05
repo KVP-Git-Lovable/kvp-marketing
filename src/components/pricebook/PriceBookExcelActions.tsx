@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/db';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Download, Upload } from 'lucide-react';

@@ -26,7 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MoreHorizontal, Edit, Trash2, Share2, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/integrations/supabase/db';
 import { toast } from "sonner";
 
 interface PostMenuProps {

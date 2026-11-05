@@ -13,7 +13,7 @@ import RejectionReasonDialog from '@/components/RejectionReasonDialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubordinates } from '@/hooks/useSubordinates';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/db';
 import { format, subMonths, addMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import HolidayList from '@/components/HolidayList';

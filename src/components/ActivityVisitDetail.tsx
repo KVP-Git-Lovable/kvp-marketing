@@ -10,7 +10,7 @@ import {
   CalendarDays, Clock, Timer, LogIn, LogOut, Loader2, Save, CheckCircle2, Play, XCircle, Activity as ActivityIcon,
   Paperclip, Upload, Trash2, FileText, Image as ImageIcon, ExternalLink, MapPin, Star,
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/db';
 import { toast } from 'sonner';
 import { useActivityTypes } from '@/hooks/useActivityTypes';
 import { usePermissions } from '@/hooks/usePermissions';
