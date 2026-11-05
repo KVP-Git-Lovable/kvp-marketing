@@ -4,7 +4,7 @@ import { useProfilePermissions } from '@/hooks/useProfilePermissions';
 import { Power, PowerOff } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Layout } from '@/components/Layout';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabaseLoose';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
