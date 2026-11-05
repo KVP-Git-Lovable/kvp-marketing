@@ -43,6 +43,13 @@
       "when": 1793870221353,
       "tag": "0005_verify_replay_retry",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793870222353,
+      "tag": "0006_marketing_module",
+      "breakpoints": true
     }
   ]
 }
