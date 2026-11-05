@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon, CheckCircle, XCircle, Eye } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from "@/integrations/supabase/db";
 import { useMyPendingSteps, useProcessApprovalStep } from '@/hooks/useApprovalEngine';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';

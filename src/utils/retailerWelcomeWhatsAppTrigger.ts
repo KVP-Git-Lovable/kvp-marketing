@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/db";
 
 /**
  * Fire-and-forget WhatsApp welcome message to a newly-created retailer.
