@@ -302,19 +302,14 @@ const EditUserDialog: React.FC<EditUserDialogProps> = ({ user, open, onOpenChang
 
       // Update security profile assignment
       if (selectedProfileId) {
-        // First delete existing assignment
-        await supabase
-          .from('user_profiles')
-          .delete()
-          .eq('user_id', user.id);
-
-        // Then insert new assignment
+        // Single upsert: deleting first would strip the admin's own access
+        // mid-save (RLS checks the profile assignment), so the insert would fail.
         const { error: upError } = await supabase
           .from('user_profiles')
-          .insert({
-            user_id: user.id,
-            profile_id: selectedProfileId,
-          });
+          .upsert(
+            { user_id: user.id, profile_id: selectedProfileId },
+            { onConflict: 'user_id' },
+          );
 
         if (upError) throw upError;
       }
