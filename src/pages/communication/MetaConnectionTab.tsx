@@ -53,13 +53,7 @@ export default function MetaConnectionTab() {
   const [defaultAdInstagramId, setDefaultAdInstagramId] = useState("");
 
   const invoke = async (action: string, extra: Record<string, unknown> = {}) => {
-    let data: any, error: any;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      ({ data, error } = await supabase.functions.invoke("meta-api", { body: { action, ...extra } }));
-      const status = (error as any)?.context?.status;
-      if (!error || (status !== 503 && status !== 502 && status !== 504)) break;
-      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
-    }
+    const { data, error } = await supabase.functions.invoke("meta-api", { body: { action, ...extra } });
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
     return data;
