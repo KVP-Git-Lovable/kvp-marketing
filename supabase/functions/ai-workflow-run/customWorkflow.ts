@@ -5,7 +5,7 @@
 // stored block composition instead of hardcoded logic. Deterministic blocks
 // compute every number under the EXECUTING user's RLS-scoped client
 // (regardless of who created the workflow); the LLM only narrates.
-import { z } from "npm:zod@3.23.8";
+import { z } from "https://esm.sh/zod@3.23.8";
 import { BLOCKS, BLOCK_KEYS, type BlockOutput } from "./blocks.ts";
 
 const FACTS_TOTAL_CAP = 3500;

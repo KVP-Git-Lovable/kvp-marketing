@@ -1,7 +1,7 @@
 // Short-lived AI fallback for intent routing + light slot extraction.
 // Only runs when the existing regex classifier finds no match.
 // Never throws: any failure/timeout resolves to "none" with all slots null.
-import { z } from "npm:zod@3.23.8";
+import { z } from "https://esm.sh/zod@3.23.8";
 import { MODEL, TOGETHER_URL } from "../config.ts";
 import { DATE_PRESETS, type DatePreset } from "./datePresets.ts";
 

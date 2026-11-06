@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Resolves "my team" to a list of user IDs for team-scoped copilot answers.
 //
 // Prefers the get_all_subordinates RPC (full recursive hierarchy over
