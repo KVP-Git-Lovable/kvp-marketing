@@ -22,7 +22,7 @@ import { EditJourneyDetailsDialog } from "@/components/journey/EditJourneyDetail
 import { JourneyAudiencePreviewDialog } from "@/components/journey/JourneyAudiencePreviewDialog";
 import { useMessageResponseLiveCounts } from "@/hooks/useMessageResponseLiveCounts";
 
-const MARKETING_SEGMENT_TYPES = new Set(["marketing_institutional", "marketing_distributor"]);
+import { MARKETING_SEGMENT_TYPES } from "@/lib/marketingSegments";
 
 interface WhatsAppTemplate { id: string; name: string; body?: string }
 interface MetaAdSetOption { id: string; name: string; campaign_name?: string; custom_audience_name?: string; custom_audience_row_count?: number }

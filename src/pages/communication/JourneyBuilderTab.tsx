@@ -30,6 +30,7 @@ import JourneyCanvas, { defaultScaffold } from "./journey/JourneyCanvas";
 import { EditJourneyDetailsDialog } from "@/components/journey/EditJourneyDetailsDialog";
 import { Textarea } from "@/components/ui/textarea";
 import { JOURNEY_OBJECTIVES, objectiveLabel, fromDateTimeLocal, isInvalidWindow } from "@/lib/journeyCampaign";
+import { MARKETING_SEGMENTS, isMarketingSegment, segmentToDatabaseType } from "@/lib/marketingSegments";
 import { DeletedJourneysDialog } from "@/components/journey/DeletedJourneysDialog";
 
 interface Journey {
@@ -140,13 +141,13 @@ export default function JourneyBuilderTab() {
   const { data: marketingListViews = [] } = useQuery({
     queryKey: ["marketing-list-views", segmentType],
     queryFn: async () => {
-      const databaseType = segmentType === "marketing_institutional" ? "institutional" : "distributor";
+      const databaseType = segmentToDatabaseType(segmentType);
       const { data, error } = await supabase
         .from("marketing_contact_list_views").select("id, name").eq("database_type", databaseType).order("name");
       if (error) throw error;
       return data as Array<{ id: string; name: string }>;
     },
-    enabled: segmentType === "marketing_institutional" || segmentType === "marketing_distributor",
+    enabled: isMarketingSegment(segmentType),
   });
 
   const audiencePreviewQuery = useQuery({
@@ -631,8 +632,9 @@ export default function JourneyBuilderTab() {
                 <Select value={segmentType} onValueChange={(v) => { setSegmentType(v); setListViewId(""); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="marketing_institutional">Institutional Marketing Database</SelectItem>
-                    <SelectItem value="marketing_distributor">Distributor Marketing Database</SelectItem>
+                    {MARKETING_SEGMENTS.map((s) => (
+                      <SelectItem key={s.segment} value={s.segment}>{s.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { databaseToSegmentType } from "@/lib/marketingSegments";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -159,8 +160,7 @@ export function LeadDetailPanel({ open, onOpenChange, contactId, onChanged }: Pr
   const currentStepIndex = contact ? STATUS_STEPS.findIndex((s) => s.value === contact.status) : -1;
 
   const convert = (listViewId: string) => {
-    if (contactDatabaseType === "event") return;
-    const segmentType = contactDatabaseType === "institutional" ? "marketing_institutional" : "marketing_distributor";
+    const segmentType = databaseToSegmentType(contactDatabaseType);
     navigate(`/communication?tab=journey-builder&new_segment_type=${segmentType}&new_list_view_id=${listViewId}`);
   };
 

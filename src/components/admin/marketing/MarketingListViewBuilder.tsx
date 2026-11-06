@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { databaseToSegmentType } from "@/lib/marketingSegments";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -107,7 +108,7 @@ export function MarketingListViewBuilder({ open, onOpenChange, initialDatabaseTy
 
   const useInJourneyBuilder = () => {
     if (!listView) return;
-    const segmentType = listView.database_type === "institutional" ? "marketing_institutional" : "marketing_distributor";
+    const segmentType = databaseToSegmentType(listView.database_type);
     navigate(`/communication?tab=journey-builder&new_segment_type=${segmentType}&new_list_view_id=${listView.id}`);
   };
 
@@ -220,7 +221,7 @@ export function MarketingListViewBuilder({ open, onOpenChange, initialDatabaseTy
             </div>
           )}
 
-          {listView && listView.database_type !== "event" && (
+          {listView && (
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
               <p className="text-xs">This List View can be selected as a Journey's audience source.</p>
               <Button type="button" className="w-full" onClick={useInJourneyBuilder}>

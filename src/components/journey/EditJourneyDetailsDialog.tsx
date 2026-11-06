@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { objectiveLabel, toDateTimeLocal, fromDateTimeLocal, isInvalidWindow } from "@/lib/journeyCampaign";
 
-const MARKETING_SEGMENT_TYPES = new Set(["marketing_institutional", "marketing_distributor"]);
+import { MARKETING_SEGMENTS, MARKETING_SEGMENT_TYPES, segmentToDatabaseType } from "@/lib/marketingSegments";
 
 interface Props {
   open: boolean;
@@ -64,7 +64,7 @@ export function EditJourneyDetailsDialog({
   const { data: marketingListViews = [] } = useQuery({
     queryKey: ["marketing-list-views", segmentType],
     queryFn: async () => {
-      const databaseType = segmentType === "marketing_institutional" ? "institutional" : "distributor";
+      const databaseType = segmentToDatabaseType(segmentType);
       const { data, error } = await supabase
         .from("marketing_contact_list_views").select("id, name").eq("database_type", databaseType).order("name");
       if (error) throw error;
@@ -161,8 +161,9 @@ export function EditJourneyDetailsDialog({
                 <Select value={segmentType} onValueChange={(v) => { setSegmentType(v); setListViewId(""); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="marketing_institutional">Institutional Marketing Database</SelectItem>
-                    <SelectItem value="marketing_distributor">Distributor Marketing Database</SelectItem>
+                    {MARKETING_SEGMENTS.map((s) => (
+                      <SelectItem key={s.segment} value={s.segment}>{s.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

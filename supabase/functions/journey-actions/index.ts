@@ -65,13 +65,15 @@ async function matchingRetailerIds(supabase: any, filters: AudienceFilter): Prom
   return (data || []).map((r: { id: string }) => r.id);
 }
 
-// Marketing-contact audience path (Institutional/Distributor databases).
+// Marketing-contact audience path (Institutional/Distributor/Event databases).
 // Fully parallel to the retailer path above — kept separate rather than
 // merged, since journeys targeting marketing_contacts enroll into their
 // own marketing_journey_enrollments table, never journey_enrollments.
-const MARKETING_SEGMENT_TYPES = new Set(['marketing_institutional', 'marketing_distributor']);
-function marketingDatabaseType(segmentType: string): 'institutional' | 'distributor' {
-  return segmentType === 'marketing_institutional' ? 'institutional' : 'distributor';
+const MARKETING_SEGMENT_TYPES = new Set(['marketing_institutional', 'marketing_distributor', 'marketing_event']);
+function marketingDatabaseType(segmentType: string): 'institutional' | 'distributor' | 'event' {
+  if (segmentType === 'marketing_institutional') return 'institutional';
+  if (segmentType === 'marketing_event') return 'event';
+  return 'distributor';
 }
 interface MarketingFilterRow {
   field: 'name' | 'phone' | 'email' | 'website' | 'state' | 'country';

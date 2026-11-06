@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { databaseToSegmentType } from "@/lib/marketingSegments";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/db";
@@ -396,8 +397,8 @@ export function MarketingContactsTab() {
   };
 
   const handleConvertActiveListView = () => {
-    if (!activeListView || activeListView.database_type === "event") return;
-    const segmentType = activeListView.database_type === "institutional" ? "marketing_institutional" : "marketing_distributor";
+    if (!activeListView) return;
+    const segmentType = databaseToSegmentType(activeListView.database_type);
     navigate(`/communication?tab=journey-builder&new_segment_type=${segmentType}&new_list_view_id=${activeListViewId}`);
   };
 
@@ -635,7 +636,7 @@ export function MarketingContactsTab() {
                   )}
                 </>
               )}
-              {activeListViewId && activeListView?.database_type !== "event" && (
+              {activeListViewId && activeListView && (
                 <Button size="sm" onClick={handleConvertActiveListView}>
                   <Workflow className="h-3.5 w-3.5 mr-1.5" /> Convert → Send to Journey Builder
                 </Button>

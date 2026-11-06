@@ -1,4 +1,5 @@
 import { Handle, Position, useStore, type NodeProps } from "@xyflow/react";
+import { isMarketingSegment } from "@/lib/marketingSegments";
 import { UserPlus, MessageSquare, Clock, GitBranch, Flag, MessageCircle, Eye, Megaphone } from "lucide-react";
 
 const CONDITION_LABELS: Record<string, string> = {
@@ -20,7 +21,7 @@ export function EntryNode({ data, selected }: NodeProps) {
     segment_type?: string; list_view_name?: string; audience_count?: number;
     onPreviewAudience?: () => void;
   };
-  const isMarketing = d.segment_type === "marketing_institutional" || d.segment_type === "marketing_distributor";
+  const isMarketing = isMarketingSegment(d.segment_type);
   const audience = isMarketing
     ? (d.list_view_name || "List View")
     : d.category && d.category !== "any" ? `Category ${d.category}` : "All retailers";

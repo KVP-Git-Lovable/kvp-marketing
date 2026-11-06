@@ -61,7 +61,7 @@ serve(async (req) => {
     // manual publish. Kept separate rather than merged into the retailer
     // query builder, since marketing contacts enroll into their own
     // marketing_journey_enrollments table.
-    const MARKETING_SEGMENT_TYPES = new Set(['marketing_institutional', 'marketing_distributor']);
+    const MARKETING_SEGMENT_TYPES = new Set(['marketing_institutional', 'marketing_distributor', 'marketing_event']);
     interface MarketingFilterRow {
       field: 'name' | 'phone' | 'email' | 'website' | 'state' | 'country';
       operator: 'equals' | 'not_equals' | 'contains' | 'is_any_of' | 'is_empty' | 'is_not_empty';

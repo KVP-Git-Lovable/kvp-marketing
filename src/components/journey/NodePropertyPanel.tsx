@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { isMarketingSegment } from "@/lib/marketingSegments";
 import type { Node, Edge } from "@xyflow/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -95,7 +96,7 @@ export function NodePropertyPanel({ node, templates, adSets, metaAdLinkedNodeIds
 
       <div className="space-y-3 flex-1 overflow-y-auto">
         {node.type === "entry" && (
-          (data.segment_type === "marketing_institutional" || data.segment_type === "marketing_distributor") ? (
+          isMarketingSegment(data.segment_type as string | undefined) ? (
             <div className="space-y-1.5">
               <Label className="text-xs">Target Audience — Retailer View</Label>
               <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs space-y-1">
