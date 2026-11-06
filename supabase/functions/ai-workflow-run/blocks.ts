@@ -6,7 +6,7 @@
 // existing runners — the duplication is intentional so the agents stay
 // behaviourally untouched. All queries run under the caller's RLS-scoped
 // client; blocks compute every number themselves (the LLM only narrates).
-import { z } from "npm:zod@3.23.8";
+import { z } from "https://esm.sh/zod@3.23.8";
 
 const CONFIRMED = new Set(["confirmed", "delivered", "invoiced", "completed", "dispatched", "packed"]);
 const DAY_MS = 86_400_000;

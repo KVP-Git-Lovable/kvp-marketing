@@ -1,7 +1,7 @@
 // QuickApp Copilot — Phase 1 edge function.
 // Auth-required. Streams Together.ai responses as SSE text tokens.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { z } from "npm:zod@3.23.8";
+import { z } from "https://esm.sh/zod@3.23.8";
 import { buildSystemPrompt } from "./prompts/systemPrompt.ts";
 import {
   streamChat,
