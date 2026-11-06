@@ -757,8 +757,8 @@ serve(async (req) => {
         : templateBody;
 
       if (!name || !category || !templateBody) {
-        return new Response(JSON.stringify({ error: 'name, category, and body are required' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        return new Response(JSON.stringify({ success: false, error: 'Please fill in the template name, category and message text.' }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
