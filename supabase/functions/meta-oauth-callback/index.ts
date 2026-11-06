@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { encryptToken } from "../_shared/meta-crypto.ts";
+import { allowedAppOrigin, resultRedirect } from "../_shared/oauth-redirect.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,11 +42,21 @@ serve(async (req) => {
 
   const htmlHeaders = { ...corsHeaders, 'Content-Type': 'text/html' };
 
+  // Where the popup should land: the app origin recorded in `state` by meta-oauth-start.
+  // With a valid origin the result is shown by the app's /oauth/result page; otherwise
+  // fall back to the plain closing page below.
+  let appOrigin: string | null = null;
+  try { appOrigin = allowedAppOrigin(JSON.parse(atob(state || '')).origin); } catch { /* no/invalid state */ }
+  const finish = (message: string, ok: boolean) =>
+    appOrigin
+      ? resultRedirect(appOrigin, 'meta-oauth', ok, message)
+      : new Response(closingPage(message, ok), { headers: htmlHeaders });
+
   if (errorParam) {
-    return new Response(closingPage(`Meta connection failed: ${errorParam}`, false), { headers: htmlHeaders });
+    return finish(`Meta connection failed: ${errorParam}`, false);
   }
   if (!code || !state) {
-    return new Response(closingPage('Missing code or state from Meta.', false), { headers: htmlHeaders });
+    return finish('Missing code or state from Meta.', false);
   }
 
   try {
@@ -60,7 +71,7 @@ serve(async (req) => {
     const appSecret = Deno.env.get('META_APP_SECRET');
     const encKey = Deno.env.get('META_TOKEN_ENC_KEY');
     if (!appId || !appSecret || !encKey) {
-      return new Response(closingPage('Meta secrets are not fully configured on the server.', false), { headers: htmlHeaders });
+      return finish('Meta secrets are not fully configured on the server.', false);
     }
 
     const redirectUri = `${supabaseUrl}/functions/v1/meta-oauth-callback`;
@@ -74,7 +85,7 @@ serve(async (req) => {
     const tokenData = await tokenResp.json();
     if (!tokenResp.ok || !tokenData.access_token) {
       console.error('Meta token exchange failed:', tokenData);
-      return new Response(closingPage('Could not exchange code for a Meta access token.', false), { headers: htmlHeaders });
+      return finish('Could not exchange code for a Meta access token.', false);
     }
 
     // Exchange for a long-lived token.
@@ -129,9 +140,9 @@ serve(async (req) => {
       });
     }
 
-    return new Response(closingPage('Meta account connected.', true), { headers: htmlHeaders });
+    return finish('Meta account connected.', true);
   } catch (error) {
     console.error('Error:', error);
-    return new Response(closingPage('Unexpected error connecting Meta account.', false), { headers: htmlHeaders });
+    return finish('Unexpected error connecting Meta account.', false);
   }
 });

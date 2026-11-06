@@ -213,6 +213,7 @@ import DistributorDetail from "./pages/DistributorDetail";
 import EditDistributor from "./pages/EditDistributor";
 import PrimaryOrders from "./pages/PrimaryOrders";
 import ResetPassword from "./pages/ResetPassword";
+import OAuthResult from "./pages/OAuthResult";
 import HelpCenter from "./pages/HelpCenter";
 import HelpArticle from "./pages/HelpArticle";
 import ChangePassword from "./pages/ChangePassword";
@@ -529,6 +530,7 @@ const AppContent = () => {
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/auth" element={<RoleBasedAuthPage />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/oauth/result" element={<OAuthResult />} />
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/map-redirect" element={<MapRedirect />} />
         <Route path="/status" element={<StatusDashboard />} />

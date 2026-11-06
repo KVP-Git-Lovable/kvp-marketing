@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { allowedAppOrigin } from "../_shared/oauth-redirect.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
@@ -40,7 +41,9 @@ serve(async (req) => {
 
     // State carries the requesting user id so the callback can attribute
     // connected_by without a session (Meta's redirect has no Supabase JWT).
-    const state = btoa(JSON.stringify({ uid: user.id, t: Date.now() }));
+    // `origin` lets the callback send the popup back to this app's /oauth/result page.
+    const origin = allowedAppOrigin(req.headers.get('origin'));
+    const state = btoa(JSON.stringify({ uid: user.id, t: Date.now(), ...(origin ? { origin } : {}) }));
     const redirectUri = `${supabaseUrl}/functions/v1/meta-oauth-callback`;
     const authUrl = new URL('https://www.facebook.com/v19.0/dialog/oauth');
     authUrl.searchParams.set('client_id', appId);
