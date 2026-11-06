@@ -1,5 +1,5 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { z } from "npm:zod@3.23.8";
+import { z } from "https://esm.sh/zod@3.23.8";
 
 const Item = z.object({
   retailerId: z.string().min(1).max(100),

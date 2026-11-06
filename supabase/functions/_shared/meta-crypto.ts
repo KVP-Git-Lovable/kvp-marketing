@@ -33,6 +33,6 @@ export async function decryptToken(encoded: string, secret: string): Promise<str
   const key = await deriveKey(secret);
   const iv = fromBase64(ivB64);
   const cipherBytes = fromBase64(cipherB64);
-  const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipherBytes);
+  const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv as BufferSource }, key, cipherBytes as BufferSource);
   return new TextDecoder().decode(plainBuf);
 }

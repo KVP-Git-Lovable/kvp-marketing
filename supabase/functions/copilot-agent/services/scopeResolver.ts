@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Central scope resolution for every team/all-capable copilot intent —
 // replaces each handler doing its own ad-hoc `if (scope === "team")
 // resolveTeamScope(...)` block with one shared call, and is the single

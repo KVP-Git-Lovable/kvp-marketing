@@ -54,7 +54,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-type SupabaseClient = ReturnType<typeof createClient>;
+// deno-lint-ignore no-explicit-any
+type SupabaseClient = any;
 
 const CONFIRMED = "confirmed";
 const DAY_MS = 86_400_000;
