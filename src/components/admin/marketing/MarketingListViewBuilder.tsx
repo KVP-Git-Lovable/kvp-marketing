@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, X, Workflow } from "lucide-react";
 import { toast } from "sonner";
+import { canCreateMarketingListView } from "@/lib/communicationSetupErrors";
 
 export type DatabaseType = "institutional" | "distributor" | "event";
 
@@ -91,6 +92,9 @@ export function MarketingListViewBuilder({ open, onOpenChange, initialDatabaseTy
       if (listView) {
         return invokeEdge("marketing-list-views", { action: "update", id: listView.id, name, filters });
       }
+      if (!canCreateMarketingListView(category)) {
+        throw new Error("Saved Event list views are not supported by this database setup. No list view was created.");
+      }
       return invokeEdge("marketing-list-views", { action: "create", database_type: category, name, filters });
     },
     onSuccess: () => {
@@ -134,6 +138,9 @@ export function MarketingListViewBuilder({ open, onOpenChange, initialDatabaseTy
                 ))}
               </SelectContent>
             </Select>
+            {!listView && category === "event" && (
+              <p role="alert" className="mt-2 text-sm text-destructive">Saved Event list views are not supported by this database setup.</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -232,7 +239,7 @@ export function MarketingListViewBuilder({ open, onOpenChange, initialDatabaseTy
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={() => saveMutation.mutate()} disabled={!name.trim() || !category || saveMutation.isPending}>
+          <Button onClick={() => saveMutation.mutate()} disabled={!name.trim() || !category || (!listView && !canCreateMarketingListView(category)) || saveMutation.isPending}>
             {saveMutation.isPending ? "Saving..." : listView ? "Save Changes" : "Create List View"}
           </Button>
         </DialogFooter>

@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Download, Upload, Users, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { readMetaFailure } from "@/lib/communicationSetupErrors";
 import {
   parseAudienceFile, validateAudienceRows, downloadAudienceTemplateCSV,
   MIN_AUDIENCE_ROWS, MAX_AUDIENCE_ROWS, type AudienceRow, type AudienceSummary,
@@ -27,10 +28,12 @@ export function CustomerListAudienceDialog({ open, onOpenChange, adAccountId, on
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [parsing, setParsing] = useState(false);
+  const [failure, setFailure] = useState<{ message: string; termsUrl?: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
     setFileName(""); setRows([]); setSummary(null); setName(""); setDescription("");
+    setFailure(null);
   };
 
   const handleFile = async (file: File) => {
@@ -52,6 +55,7 @@ export function CustomerListAudienceDialog({ open, onOpenChange, adAccountId, on
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      setFailure(null);
       const payloadRows = rows.filter((r) => r.resolved).map((r) => ({ email: r.normalizedEmail || "", phone: r.normalizedPhone || "" }));
       const { data, error } = await supabase.functions.invoke("meta-api", {
         body: {
@@ -62,8 +66,11 @@ export function CustomerListAudienceDialog({ open, onOpenChange, adAccountId, on
           rows: payloadRows,
         },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      const issue = await readMetaFailure(data, error);
+      if (issue) {
+        setFailure(issue);
+        throw new Error(issue.message);
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -83,6 +90,16 @@ export function CustomerListAudienceDialog({ open, onOpenChange, adAccountId, on
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle className="flex items-center gap-2"><Users className="h-4 w-4" /> Upload Customer List</DialogTitle></DialogHeader>
         <div className="space-y-4">
+          {failure && (
+            <div role="alert" className="space-y-2 text-sm text-destructive">
+              <p>{failure.message}</p>
+              {failure.termsUrl && (
+                <Button asChild variant="outline" size="sm">
+                  <a href={failure.termsUrl} target="_blank" rel="noopener noreferrer">Review Meta Custom Audience Terms</a>
+                </Button>
+              )}
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">
             Upload a CSV or Excel file with email and/or phone columns. Identifiers are hashed before they reach Meta and are not stored in this app.
           </p>
