@@ -1441,8 +1441,10 @@ serve(async (req) => {
     const message = isMeta && /permission/i.test(raw)
       ? 'Meta denied permission for this action. Make sure your Facebook account has an admin or advertiser role on this ad account/business and that all requested permissions were granted, then reconnect Meta.'
       : raw;
-    return new Response(JSON.stringify({ error: message, meta_error: isMeta, meta_subcode: metaSubcode ?? null }), {
-      status: isMeta ? 400 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    // Meta domain errors (billing, permissions, terms) are expected config issues, not crashes:
+    // answer 200 so callers show the message instead of the preview's blank-screen overlay.
+    return new Response(JSON.stringify({ success: false, error: message, meta_error: isMeta, meta_subcode: metaSubcode ?? null }), {
+      status: isMeta ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
