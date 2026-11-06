@@ -5,11 +5,58 @@ import { decryptToken, encryptToken } from "../_shared/meta-crypto.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Expose-Headers': 'x-meta-api-build',
+  'X-Meta-Api-Build': 'ads-media-2026-11-06',
 };
 
 const GRAPH = 'https://graph.facebook.com/v19.0';
 
 const BILLING_FIELDS = 'name,currency,account_status,disable_reason,is_prepay_account,funding_source,funding_source_details,expired_funding_source_details,amount_spent,balance,spend_cap,business';
+
+// ---- Ad creative helpers (image / video, optional destination) ----
+type AdMediaInput = { kind?: string; url?: string; video_id?: string; video_status?: string; thumbnail_url?: string } | null | undefined;
+
+function videoStatusFromMeta(live: any): 'processing' | 'ready' | 'error' {
+  const v = String(live?.status?.video_status ?? '').toLowerCase();
+  if (v === 'ready') return 'ready';
+  if (v === 'error') return 'error';
+  return 'processing';
+}
+
+function normalizeAdMedia(media: AdMediaInput, legacyUrl?: string | null) {
+  const url = (media?.url || legacyUrl || '').trim();
+  if (!url) return null;
+  const kind = media?.kind === 'video' ? 'video' : 'image';
+  return { kind, url, video_id: media?.video_id, video_status: media?.video_status, thumbnail_url: media?.thumbnail_url };
+}
+
+// Builds object_story_spec for a link ad (image) or video ad. With no destination the ad opens the Facebook Page.
+function buildStorySpec(a: {
+  pageId?: string; instagramId?: string | null; media: ReturnType<typeof normalizeAdMedia>;
+  primaryText?: string; headline?: string; description?: string; cta?: string; destination?: string; useDestination: boolean;
+}) {
+  const link = a.useDestination && a.destination ? a.destination : `https://www.facebook.com/${a.pageId}`;
+  const cta = a.cta && a.cta !== 'NO_BUTTON' ? { type: a.cta, value: { link } } : undefined;
+  const spec: Record<string, unknown> = { page_id: a.pageId };
+  if (a.media?.kind === 'video') {
+    if (!a.media.video_id) throw new Error('Video has not been registered with Meta yet');
+    if (a.media.video_status && a.media.video_status !== 'ready') throw new Error('Meta is still processing the video. Try again in a minute.');
+    spec.video_data = {
+      video_id: a.media.video_id, image_url: a.media.thumbnail_url || undefined,
+      message: a.primaryText, title: a.headline || undefined, link_description: a.description || undefined,
+      call_to_action: cta || { type: 'NO_BUTTON', value: { link } },
+    };
+  } else {
+    const linkData: Record<string, unknown> = {
+      message: a.primaryText, link, name: a.headline, description: a.description || undefined,
+      call_to_action: cta ? { type: cta.type } : undefined,
+    };
+    if (a.media) linkData.picture = a.media.url;
+    spec.link_data = linkData;
+  }
+  if (a.instagramId) spec.instagram_actor_id = a.instagramId;
+  return spec;
+}
 
 async function graph(path: string, token: string, opts: { method?: string; params?: Record<string, string>; body?: Record<string, unknown> } = {}) {
   const url = new URL(`${GRAPH}${path}`);
@@ -1061,6 +1108,33 @@ serve(async (req) => {
       return json(data);
     }
 
+    if (action === 'register_ad_video') {
+      const p = body.payload || body;
+      const fileUrl = String(p.file_url ?? '').trim();
+      if (!/^https?:\/\//i.test(fileUrl)) return json({ error: 'A public video URL is required' }, 400);
+      const { data: adSet } = await supabase.from('meta_ad_sets').select('campaign_id').eq('id', p.ad_set_id).maybeSingle();
+      if (!adSet) return json({ error: 'Ad set not found' }, 404);
+      const { data: campaign } = await supabase.from('meta_campaigns').select('ad_account_id').eq('id', adSet.campaign_id).maybeSingle();
+      const { data: acc } = await supabase.from('meta_ad_accounts').select('ad_account_id').eq('id', campaign?.ad_account_id).maybeSingle();
+      if (!acc) return json({ error: 'Ad account not found' }, 404);
+      const title = String(p.title || 'Ad video').slice(0, 250);
+      const created = await graph(`/act_${acc.ad_account_id}/advideos`, accessToken, { method: 'POST', body: { file_url: fileUrl, title, name: title } });
+      const videoId = String(created.id ?? created.video_id);
+      let videoStatus: 'processing' | 'ready' | 'error' = 'processing';
+      try { videoStatus = videoStatusFromMeta(await graph(`/${videoId}`, accessToken, { params: { fields: 'status' } })); } catch (_) { /* polled later */ }
+      return json({ success: true, video_id: videoId, video_status: videoStatus });
+    }
+
+    if (action === 'check_ad_video') {
+      const p = body.payload || body;
+      const videoId = String(p.video_id ?? '').trim();
+      if (!/^\d+$/.test(videoId)) return json({ error: 'video_id is required' }, 400);
+      const live = await graph(`/${videoId}`, accessToken, { params: { fields: 'status,thumbnails{uri,is_preferred}' } });
+      const thumbs: Array<{ uri?: string; is_preferred?: boolean }> = live?.thumbnails?.data || [];
+      const preferred = thumbs.find((t) => t.is_preferred) || thumbs[0];
+      return json({ success: true, video_status: videoStatusFromMeta(live), thumbnail_url: preferred?.uri || null, processing_progress: live?.status?.processing_progress ?? null });
+    }
+
     if (action === 'ads_create') {
       const { ad_set_row_id, name, page_row_id, primary_text, headline, description, call_to_action, destination_url, media_url, instagram_actor_id } = body;
       const { data: adSet } = await supabase.from('meta_ad_sets').select('meta_ad_set_id, campaign_id').eq('id', ad_set_row_id).single();
@@ -1070,15 +1144,12 @@ serve(async (req) => {
       if (!acc) return json({ error: 'Ad account not found' }, 404);
       const { data: page } = await supabase.from('meta_pages').select('page_id').eq('id', page_row_id).maybeSingle();
 
-      const linkData: Record<string, unknown> = {
-        message: primary_text, link: destination_url || 'https://facebook.com',
-        name: headline, description: description || undefined,
-        call_to_action: call_to_action ? { type: call_to_action } : undefined,
-      };
-      if (media_url) linkData.picture = media_url;
-
-      const storySpec: Record<string, unknown> = { page_id: page?.page_id, link_data: linkData };
-      if (instagram_actor_id) storySpec.instagram_actor_id = instagram_actor_id;
+      const adMedia = normalizeAdMedia(body.media, media_url);
+      const useDestination = body.use_destination !== false && !!destination_url;
+      const storySpec = buildStorySpec({
+        pageId: page?.page_id, instagramId: instagram_actor_id, media: adMedia,
+        primaryText: primary_text, headline, description, cta: call_to_action, destination: destination_url, useDestination,
+      });
 
       const creative = await graph(`/act_${acc.ad_account_id}/adcreatives`, accessToken, {
         method: 'POST',
@@ -1096,7 +1167,7 @@ serve(async (req) => {
         ad_set_id: ad_set_row_id, meta_ad_id: createdAd.id, name, status: 'paused',
         primary_text, headline: headline || null, description: description || null,
         call_to_action: call_to_action || null, destination_url: destination_url || null,
-        creative: { media_url, page_row_id, instagram_actor_id: instagram_actor_id || null }, creative_type: media_url ? 'image_link' : 'link',
+        creative: { media_url: adMedia?.url ?? null, media: adMedia, ai_media: !!body.ai_media, use_destination: useDestination, page_row_id, instagram_actor_id: instagram_actor_id || null }, creative_type: adMedia?.kind === 'video' ? 'video' : adMedia ? 'image_link' : 'link',
         last_synced_at: new Date().toISOString(),
       }).select().single();
       if (error) return json({ error: error.message }, 500);
@@ -1114,15 +1185,17 @@ serve(async (req) => {
       const resolvedPageRowId = page_row_id || (ad.creative as any)?.page_row_id;
       const { data: page } = await supabase.from('meta_pages').select('page_id').eq('id', resolvedPageRowId).maybeSingle();
 
-      const linkData: Record<string, unknown> = {
-        message: primary_text, link: destination_url || 'https://facebook.com',
-        name: headline, description: description || undefined,
-        call_to_action: call_to_action ? { type: call_to_action } : undefined,
-      };
-      if (media_url) linkData.picture = media_url;
-      const storySpec: Record<string, unknown> = { page_id: page?.page_id, link_data: linkData };
-      const resolvedInstagramId = instagram_actor_id ?? (ad.creative as any)?.instagram_actor_id;
-      if (resolvedInstagramId) storySpec.instagram_actor_id = resolvedInstagramId;
+      const prevCreative = (ad.creative as any) || {};
+      const adMedia = body.media !== undefined || media_url !== undefined
+        ? normalizeAdMedia(body.media, media_url)
+        : normalizeAdMedia(prevCreative.media, prevCreative.media_url);
+      const useDestination = body.use_destination !== undefined ? body.use_destination !== false && !!(destination_url ?? ad.destination_url) : prevCreative.use_destination !== false && !!(destination_url ?? ad.destination_url);
+      const resolvedInstagramId = instagram_actor_id ?? prevCreative.instagram_actor_id;
+      const storySpec = buildStorySpec({
+        pageId: page?.page_id, instagramId: resolvedInstagramId, media: adMedia,
+        primaryText: primary_text ?? ad.primary_text, headline: headline ?? ad.headline, description: description ?? ad.description,
+        cta: call_to_action ?? ad.call_to_action, destination: destination_url ?? ad.destination_url, useDestination,
+      });
 
       const creative = await graph(`/act_${acc.ad_account_id}/adcreatives`, accessToken, {
         method: 'POST',
@@ -1140,8 +1213,8 @@ serve(async (req) => {
         description: description ?? ad.description,
         call_to_action: call_to_action ?? ad.call_to_action,
         destination_url: destination_url ?? ad.destination_url,
-        creative: { media_url: media_url ?? (ad.creative as any)?.media_url, page_row_id: resolvedPageRowId, instagram_actor_id: resolvedInstagramId || null },
-        creative_type: (media_url ?? (ad.creative as any)?.media_url) ? 'image_link' : 'link',
+        creative: { media_url: adMedia?.url ?? null, media: adMedia, ai_media: body.ai_media ?? prevCreative.ai_media ?? false, use_destination: useDestination, page_row_id: resolvedPageRowId, instagram_actor_id: resolvedInstagramId || null },
+        creative_type: adMedia?.kind === 'video' ? 'video' : adMedia ? 'image_link' : 'link',
         last_synced_at: new Date().toISOString(),
       }).eq('id', ad_id).select().single();
       if (error) return json({ error: error.message }, 500);

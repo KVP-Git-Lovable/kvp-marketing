@@ -11,6 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { AdMediaPicker } from "@/components/communication/meta/AdMediaPicker";
+import { type AdMedia, normalizeMedia } from "@/lib/adMedia";
 import { Plus, MoreHorizontal, Play, Pause, Trash2, Megaphone, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
@@ -19,7 +23,7 @@ interface Ad {
   id: string; name: string; status: string; meta_ad_id: string;
   primary_text: string | null; headline: string | null; description: string | null;
   call_to_action: string | null; destination_url: string | null;
-  creative: { media_url?: string | null; page_row_id?: string | null; instagram_actor_id?: string | null } | null;
+  creative: { media_url?: string | null; media?: unknown; ai_media?: boolean; use_destination?: boolean; page_row_id?: string | null; instagram_actor_id?: string | null } | null;
   meta_ad_sets: { id: string; name: string };
 }
 interface AdSet { id: string; name: string; meta_campaigns?: { id: string; name: string; ad_account_id?: string } }
@@ -44,7 +48,7 @@ const statusColors: Record<string, string> = {
 const initialForm = {
   ad_set_row_id: "", name: "", page_row_id: "", primary_text: "", headline: "",
   description: "", call_to_action: CTA_OPTIONS[0], destination_url: "", media_url: "",
-  instagram_actor_id: PAGE_DEFAULT,
+  instagram_actor_id: PAGE_DEFAULT, use_destination: true, ai_media: false,
 };
 
 export default function MetaAdsPanel({ adAccountRowId }: { adAccountRowId?: string }) {
@@ -52,6 +56,7 @@ export default function MetaAdsPanel({ adAccountRowId }: { adAccountRowId?: stri
   const [showCreate, setShowCreate] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(initialForm);
+  const [media, setMedia] = useState<AdMedia | null>(null);
   const [campaignFilter, setCampaignFilter] = useState<string>("all");
   const [adSetFilter, setAdSetFilter] = useState<string>("all");
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -143,12 +148,13 @@ export default function MetaAdsPanel({ adAccountRowId }: { adAccountRowId?: stri
     mutationFn: () => invoke("ads_create", {
       ad_set_row_id: form.ad_set_row_id, name: form.name, page_row_id: form.page_row_id,
       primary_text: form.primary_text, headline: form.headline || undefined, description: form.description || undefined,
-      call_to_action: form.call_to_action, destination_url: form.destination_url || undefined, media_url: form.media_url || undefined,
+      call_to_action: form.call_to_action, destination_url: form.use_destination ? form.destination_url || undefined : undefined,
+      media: media || undefined, media_url: media?.url || undefined, use_destination: form.use_destination, ai_media: form.ai_media,
       instagram_actor_id: form.instagram_actor_id !== PAGE_DEFAULT ? form.instagram_actor_id : undefined,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["meta-ads-list"] });
-      setShowCreate(false); setForm(initialForm);
+      setShowCreate(false); setForm(initialForm); setMedia(null);
       toast.success("Ad created (paused) — publish it when ready");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -158,12 +164,13 @@ export default function MetaAdsPanel({ adAccountRowId }: { adAccountRowId?: stri
     mutationFn: () => invoke("ads_update", {
       ad_id: editId, name: form.name, page_row_id: form.page_row_id || undefined,
       primary_text: form.primary_text, headline: form.headline || undefined, description: form.description || undefined,
-      call_to_action: form.call_to_action, destination_url: form.destination_url || undefined, media_url: form.media_url || undefined,
+      call_to_action: form.call_to_action, destination_url: form.use_destination ? form.destination_url || undefined : undefined,
+      media: media || undefined, media_url: media?.url || undefined, use_destination: form.use_destination, ai_media: form.ai_media,
       instagram_actor_id: form.instagram_actor_id !== PAGE_DEFAULT ? form.instagram_actor_id : undefined,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["meta-ads-list"] });
-      setShowCreate(false); setEditId(null); setForm(initialForm);
+      setShowCreate(false); setEditId(null); setForm(initialForm); setMedia(null);
       toast.success("Ad updated");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -176,7 +183,9 @@ export default function MetaAdsPanel({ adAccountRowId }: { adAccountRowId?: stri
       primary_text: a.primary_text || "", headline: a.headline || "", description: a.description || "",
       call_to_action: a.call_to_action || CTA_OPTIONS[0], destination_url: a.destination_url || "",
       media_url: a.creative?.media_url || "", instagram_actor_id: a.creative?.instagram_actor_id || PAGE_DEFAULT,
+      use_destination: a.creative?.use_destination !== false && !!a.destination_url, ai_media: !!a.creative?.ai_media,
     });
+    setMedia(normalizeMedia(a.creative?.media) || (a.creative?.media_url ? { kind: "image", url: a.creative.media_url } : null));
     setShowCreate(true);
   };
 
@@ -292,76 +301,125 @@ export default function MetaAdsPanel({ adAccountRowId }: { adAccountRowId?: stri
         </CardContent>
       </Card>
 
-      <Dialog open={showCreate} onOpenChange={(o) => { setShowCreate(o); if (!o) { setEditId(null); setForm(initialForm); } }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><Megaphone className="h-4 w-4" /> {editId ? "Edit Ad" : "Create Ad"}</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label className="text-xs">Ad Set</Label>
+      <Dialog open={showCreate} onOpenChange={(o) => { setShowCreate(o); if (!o) { setEditId(null); setForm(initialForm); setMedia(null); } }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] p-0 gap-0 flex flex-col">
+          <DialogHeader className="px-6 pt-6 pb-3"><DialogTitle className="flex items-center gap-2"><Megaphone className="h-4 w-4" /> {editId ? "Edit Ad" : "Create Ad"}</DialogTitle></DialogHeader>
+          <div className="space-y-5 overflow-y-auto px-6 pb-4">
+            <div className="space-y-1.5">
+              <Label>Ad Set</Label>
               <Select value={form.ad_set_row_id} onValueChange={(v) => setForm({ ...form, ad_set_row_id: v })} disabled={!!editId}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Select ad set" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select a published ad set" /></SelectTrigger>
                 <SelectContent>{adSetsInAccount.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div>
-              <Label className="text-xs">Facebook Page</Label>
-              <Select value={form.page_row_id} onValueChange={(v) => setForm({ ...form, page_row_id: v })}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Select page" /></SelectTrigger>
-                <SelectContent>{pages.map((p) => <SelectItem key={p.id} value={p.id}>{p.page_name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Instagram Identity</Label>
-              <Select value={form.instagram_actor_id} onValueChange={(v) => setForm({ ...form, instagram_actor_id: v })}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={PAGE_DEFAULT}>Page default</SelectItem>
-                  {instagramAccounts.map((ig) => <SelectItem key={ig.id} value={ig.id}>@{ig.username}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Ad Name</Label>
+            <div className="space-y-1.5">
+              <Label>Ad Name</Label>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </div>
-            <div>
-              <Label className="text-xs">Primary Text</Label>
-              <Textarea rows={3} value={form.primary_text} onChange={(e) => setForm({ ...form, primary_text: e.target.value })} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+
+            <div className="space-y-2 border-t pt-4">
               <div>
-                <Label className="text-xs">Headline</Label>
-                <Input value={form.headline} onChange={(e) => setForm({ ...form, headline: e.target.value })} />
+                <h3 className="text-sm font-semibold">Ad setup</h3>
+                <p className="text-xs text-muted-foreground">Format · choose an ad creative layout</p>
               </div>
+              <RadioGroup value="single" className="flex gap-6">
+                <div className="flex items-center gap-2"><RadioGroupItem value="single" id="fmt-single" /><Label htmlFor="fmt-single" className="font-normal">Single image or video</Label></div>
+                <div className="flex items-center gap-2 opacity-50"><RadioGroupItem value="carousel" id="fmt-carousel" disabled /><Label htmlFor="fmt-carousel" className="font-normal">Carousel <span className="text-xs">(coming soon)</span></Label></div>
+              </RadioGroup>
+            </div>
+
+            <div className="space-y-3 border-t pt-4">
               <div>
-                <Label className="text-xs">Call to Action</Label>
-                <Select value={form.call_to_action} onValueChange={(v) => setForm({ ...form, call_to_action: v })}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>{CTA_OPTIONS.map((c) => <SelectItem key={c} value={c}>{c.replace(/_/g, " ")}</SelectItem>)}</SelectContent>
-                </Select>
+                <h3 className="text-sm font-semibold">Ad creative</h3>
+                <p className="text-xs text-muted-foreground">Select your ad media and text.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Media</Label>
+                <AdMediaPicker value={media} onChange={setMedia} adSetId={form.ad_set_row_id} title={form.name || "Ad video"} />
+              </div>
+              <div className="flex items-start gap-2">
+                <Checkbox id="ai-media" checked={form.ai_media} onCheckedChange={(c) => setForm({ ...form, ai_media: c === true })} className="mt-0.5" />
+                <div>
+                  <Label htmlFor="ai-media" className="font-normal">Ad includes media created or edited with AI</Label>
+                  <p className="text-xs text-muted-foreground">Recorded with this ad for your reference. Meta adds its "AI info" label through Ads Manager and its own detection; the Marketing API has no field for it.</p>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Primary Text</Label>
+                <Textarea rows={4} value={form.primary_text} onChange={(e) => setForm({ ...form, primary_text: e.target.value })} />
               </div>
             </div>
-            <div>
-              <Label className="text-xs">Description (optional)</Label>
-              <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+
+            <div className="space-y-3 border-t pt-4">
+              <div>
+                <h3 className="text-sm font-semibold">Identity</h3>
+                <p className="text-xs text-muted-foreground">The profiles that will be used in your ad, as in Ads Manager.</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Facebook Page</Label>
+                  <Select value={form.page_row_id} onValueChange={(v) => setForm({ ...form, page_row_id: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select page" /></SelectTrigger>
+                    <SelectContent>{pages.map((p) => <SelectItem key={p.id} value={p.id}>{p.page_name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Instagram profile</Label>
+                  <Select value={form.instagram_actor_id} onValueChange={(v) => setForm({ ...form, instagram_actor_id: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={PAGE_DEFAULT}>Page default (Page-backed Instagram)</SelectItem>
+                      {instagramAccounts.map((ig) => <SelectItem key={ig.id} value={ig.id}>@{ig.username}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {instagramAccounts.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No Instagram profile is attached to this ad account on Meta. Add it under Business settings → Instagram profiles → Connect assets.</p>
+                  )}
+                </div>
+              </div>
             </div>
-            <div>
-              <Label className="text-xs">Destination URL</Label>
-              <Input value={form.destination_url} onChange={(e) => setForm({ ...form, destination_url: e.target.value })} placeholder="https://..." />
-            </div>
-            <div>
-              <Label className="text-xs">Media URL (image)</Label>
-              <Input value={form.media_url} onChange={(e) => setForm({ ...form, media_url: e.target.value })} placeholder="https://..." />
+
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex items-start gap-2">
+                <Checkbox id="use-destination" checked={form.use_destination} onCheckedChange={(c) => setForm({ ...form, use_destination: c === true })} className="mt-0.5" />
+                <div>
+                  <Label htmlFor="use-destination" className="font-normal">Add a destination</Label>
+                  <p className="text-xs text-muted-foreground">Send people to a website after they tap the ad. Without a destination they are sent to your Facebook Page, and the ad runs as a plain photo or video post.</p>
+                </div>
+              </div>
+              {form.use_destination && (
+                <div className="space-y-1.5">
+                  <Label>Destination URL <span className="text-destructive">*</span></Label>
+                  <Input value={form.destination_url} onChange={(e) => setForm({ ...form, destination_url: e.target.value })} placeholder="https://" />
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Headline</Label>
+                  <Input value={form.headline} onChange={(e) => setForm({ ...form, headline: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Call to Action</Label>
+                  <Select value={form.call_to_action} onValueChange={(v) => setForm({ ...form, call_to_action: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{CTA_OPTIONS.map((c) => <SelectItem key={c} value={c}>{c.split("_").map((w) => w[0] + w.slice(1).toLowerCase()).join(" ")}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Description (optional)</Label>
+                <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+              </div>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="px-6 py-4 border-t">
             <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
             {editId ? (
-              <Button onClick={() => updateMutation.mutate()} disabled={!form.name || !form.primary_text || updateMutation.isPending}>
+              <Button onClick={() => updateMutation.mutate()} disabled={!form.name || !form.primary_text || (form.use_destination && !form.destination_url) || updateMutation.isPending}>
                 {updateMutation.isPending ? "Saving..." : "Save Changes"}
               </Button>
             ) : (
-              <Button onClick={() => createMutation.mutate()} disabled={!form.ad_set_row_id || !form.page_row_id || !form.name || !form.primary_text || createMutation.isPending}>
+              <Button onClick={() => createMutation.mutate()} disabled={!form.ad_set_row_id || !form.page_row_id || !form.name || !form.primary_text || (form.use_destination && !form.destination_url) || createMutation.isPending}>
                 {createMutation.isPending ? "Creating..." : "Create Ad"}
               </Button>
             )}
