@@ -6,6 +6,8 @@ import { createHash, timingSafeEqual } from "node:crypto";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-token',
+  // Visible on every response (even a 401) so a deploy can be verified without a login.
+  'X-Journeys-Build': 'event-audience-2026-11-06',
 };
 
 const sha256 = (v: string) => createHash('sha256').update(v, 'utf8').digest();

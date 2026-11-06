@@ -41,6 +41,8 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+  // Visible on every response (even a 401) so a deploy can be verified without a login.
+  'X-Journeys-Build': 'event-audience-2026-11-06',
 };
 
 // Journey CRUD + control, targeting this project's own `retailers` table as
