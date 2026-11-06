@@ -82,14 +82,41 @@ function deriveTwilioMetadata(types: Record<string, any> | null | undefined) {
 
 // staging-quickapp's own existing WhatsApp secrets (used by
 // send-order-confirmation-whatsapp etc.) — reused here, no new credential.
+const TWILIO_GATEWAY = 'https://connector-gateway.lovable.dev/twilio';
+
+// Prefer the linked Twilio connector (gateway); fall back to direct SID/token.
 function getTwilioAuth() {
+  const lovableKey = Deno.env.get('LOVABLE_API_KEY');
+  const connKey = Deno.env.get('TWILIO_API_KEY');
+  if (lovableKey && connKey) {
+    return { accountSid: '', authHeader: `Bearer ${lovableKey}`, gatewayKey: connKey as string | null };
+  }
   const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
   const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
   if (!accountSid || !authToken) return null;
   return {
     accountSid,
     authHeader: 'Basic ' + btoa(`${accountSid}:${authToken}`),
+    gatewayKey: null as string | null,
   };
+}
+
+// Rewrites Twilio URLs to the connector gateway when it is linked.
+function twilioFetch(url: string, init: RequestInit = {}) {
+  const lovableKey = Deno.env.get('LOVABLE_API_KEY');
+  const connKey = Deno.env.get('TWILIO_API_KEY');
+  if (!lovableKey || !connKey) return fetch(url, init);
+  let target = url;
+  if (url.startsWith(CONTENT_API_BASE)) {
+    target = TWILIO_GATEWAY + '/content' + url.slice(CONTENT_API_BASE.length);
+  } else {
+    const m = url.match(/^https:\/\/api\.twilio\.com\/2010-04-01\/Accounts\/[^/]*(\/.*)$/);
+    if (m) target = TWILIO_GATEWAY + m[1];
+  }
+  const headers = new Headers(init.headers || {});
+  headers.set('Authorization', `Bearer ${lovableKey}`);
+  headers.set('X-Connection-Api-Key', connKey);
+  return fetch(target, { ...init, headers });
 }
 
 serve(async (req) => {
@@ -189,7 +216,7 @@ serve(async (req) => {
           });
         }
 
-        const resp = await fetch(`${CONTENT_API_BASE}/v1/Content`, {
+        const resp = await twilioFetch(`${CONTENT_API_BASE}/v1/Content`, {
           headers: { 'Authorization': twilio.authHeader },
         });
 
@@ -235,7 +262,7 @@ serve(async (req) => {
           let userInitiatedApproved = false;
 
           try {
-            const approvalResp = await fetch(
+            const approvalResp = await twilioFetch(
               `${CONTENT_API_BASE}/v1/Content/${content.sid}/ApprovalRequests`,
               { headers: { 'Authorization': twilio.authHeader } }
             );
@@ -310,11 +337,11 @@ serve(async (req) => {
         for (const tmpl of templates || []) {
           try {
             const [approvalResp, contentResp] = await Promise.all([
-              fetch(
+              twilioFetch(
                 `${CONTENT_API_BASE}/v1/Content/${tmpl.twilio_content_sid}/ApprovalRequests`,
                 { headers: { 'Authorization': twilio.authHeader } },
               ),
-              fetch(
+              twilioFetch(
                 `${CONTENT_API_BASE}/v1/Content/${tmpl.twilio_content_sid}`,
                 { headers: { 'Authorization': twilio.authHeader } },
               ),
@@ -389,11 +416,11 @@ serve(async (req) => {
         }
 
         const [twilioResponse, contentResp] = await Promise.all([
-          fetch(
+          twilioFetch(
             `${CONTENT_API_BASE}/v1/Content/${template.twilio_content_sid}/ApprovalRequests`,
             { headers: { 'Authorization': twilio.authHeader } },
           ),
-          fetch(
+          twilioFetch(
             `${CONTENT_API_BASE}/v1/Content/${template.twilio_content_sid}`,
             { headers: { 'Authorization': twilio.authHeader } },
           ),
@@ -522,7 +549,7 @@ serve(async (req) => {
           }
         }
 
-        const createResp = await fetch(`${CONTENT_API_BASE}/v1/Content`, {
+        const createResp = await twilioFetch(`${CONTENT_API_BASE}/v1/Content`, {
           method: 'POST',
           headers: { 'Authorization': twilio.authHeader, 'Content-Type': 'application/json' },
           body: JSON.stringify({ friendly_name: `${tmpl.name}_${Date.now()}`, language: tmpl.language || 'en', types: cleanedTypes }),
@@ -535,7 +562,7 @@ serve(async (req) => {
         }
 
         try {
-          await fetch(`${CONTENT_API_BASE}/v1/Content/${createData.sid}/ApprovalRequests/whatsapp`, {
+          await twilioFetch(`${CONTENT_API_BASE}/v1/Content/${createData.sid}/ApprovalRequests/whatsapp`, {
             method: 'POST',
             headers: { 'Authorization': twilio.authHeader, 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: tmpl.name, category: (tmpl.category || 'UTILITY').toLowerCase() }),
@@ -597,7 +624,7 @@ serve(async (req) => {
         if (variables && typeof variables === 'object' && Object.keys(variables).length > 0) {
           params.set('ContentVariables', JSON.stringify(variables));
         }
-        const sendResp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilio.accountSid}/Messages.json`, {
+        const sendResp = await twilioFetch(`https://api.twilio.com/2010-04-01/Accounts/${twilio.accountSid}/Messages.json`, {
           method: 'POST',
           headers: { 'Authorization': twilio.authHeader, 'Content-Type': 'application/x-www-form-urlencoded' },
           body: params,
@@ -799,7 +826,7 @@ serve(async (req) => {
       const twilio = getTwilioAuth();
       if (twilio) {
         try {
-          const twilioResponse = await fetch(`${CONTENT_API_BASE}/v1/Content`, {
+          const twilioResponse = await twilioFetch(`${CONTENT_API_BASE}/v1/Content`, {
             method: 'POST',
             headers: {
               'Authorization': twilio.authHeader,
@@ -817,7 +844,7 @@ serve(async (req) => {
 
           if (twilioResponse.ok && twilioData.sid) {
             try {
-              await fetch(`${CONTENT_API_BASE}/v1/Content/${twilioData.sid}/ApprovalRequests/whatsapp`, {
+              await twilioFetch(`${CONTENT_API_BASE}/v1/Content/${twilioData.sid}/ApprovalRequests/whatsapp`, {
                 method: 'POST',
                 headers: {
                   'Authorization': twilio.authHeader,
