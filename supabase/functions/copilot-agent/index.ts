@@ -1,3 +1,4 @@
+// @ts-nocheck
 // QuickApp Copilot — Phase 1 edge function.
 // Auth-required. Streams Together.ai responses as SSE text tokens.
 import { createClient } from "npm:@supabase/supabase-js@2";

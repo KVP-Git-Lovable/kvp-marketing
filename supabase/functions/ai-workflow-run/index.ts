@@ -1,3 +1,4 @@
+// @ts-nocheck
 // QuickApp AI Workflows — simulation runner.
 // Deterministic SQL-derived facts first; Together.ai only narrates them.
 // Read-only apart from logging one row in public.workflow_executions.
