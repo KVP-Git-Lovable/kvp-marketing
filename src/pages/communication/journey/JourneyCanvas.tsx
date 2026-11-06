@@ -401,6 +401,7 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
           {journey && (
             <JourneyAnalyticsTab
               journeyId={journeyId}
+              journeyName={journey.name}
               canvasData={journey.canvas_data as unknown as React.ComponentProps<typeof JourneyAnalyticsTab>["canvasData"]}
               enrolledCount={journey.enrolled_count}
               completedCount={journey.completed_count}

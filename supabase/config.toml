@@ -134,3 +134,6 @@ verify_jwt = false
 
 [functions.journey-retry]
 verify_jwt = false
+
+[functions.whatsapp-inbound]
+verify_jwt = false
