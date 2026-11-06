@@ -5,7 +5,15 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  // Visible on every response so a deploy can be verified without credentials.
+  'X-Webhook-Build': 'silent-2026-11-06',
 };
+
+// KVP Marketing sends WhatsApp through journeys and templates only. This webhook is the QuickApp
+// field-sales retailer bot (greeting + Place Order template, retailer assistant, "not registered"
+// replies), which must NOT answer messages sent to the KVP number. Keep false; the old code below
+// stays in place, unreachable, so it can be switched back on deliberately.
+const KVP_AUTO_REPLIES_ENABLED = false;
 
 const MEMORY_TTL = 30 * 60 * 1000; // 30 minutes
 const CONTEXT_TTL = 30 * 60 * 1000; // 30 minutes for conversation context
@@ -2254,6 +2262,12 @@ serve(async (req) => {
     }
     if (messageSid) recentMessageSids.set(messageSid, now);
 
+    // No automatic replies for KVP Marketing: acknowledge Twilio with an empty TwiML and stop.
+    if (!KVP_AUTO_REPLIES_ENABLED) {
+      console.log(`webhook_latency_ms=${(performance.now() - t0).toFixed(0)} path=auto-replies-disabled`);
+      return sendEmptyTwiml();
+    }
+
     // ── Fast-path: greeting → instant TwiML text reply, then template w/ button async ──
     if (GREETING_SET.has(message.toLowerCase())) {
       const last = recentGreetings.get(phone);
@@ -2814,7 +2828,13 @@ function sendEmptyTwiml(): Response {
 }
 
 async function sendTwilioTemplate(to: string): Promise<void> {
+  if (!KVP_AUTO_REPLIES_ENABLED) return;
   const accountSid = 'AC2bed17b2742df7031ebc7de2d726b62f';
+  const templateFrom = Deno.env.get('TWILIO_WHATSAPP_NUMBER');
+  if (!templateFrom) {
+    console.error('TWILIO_WHATSAPP_NUMBER not configured, skipping template send');
+    return;
+  }
   const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
   if (!authToken) {
     console.error('TWILIO_AUTH_TOKEN not configured, skipping template send');
@@ -2826,7 +2846,7 @@ async function sendTwilioTemplate(to: string): Promise<void> {
 
   const formBody = new URLSearchParams({
     To: to,
-    From: 'whatsapp:+917411681616',
+    From: templateFrom.startsWith('whatsapp:') ? templateFrom : `whatsapp:${templateFrom}`,
     ContentSid: 'HXae62614f9e4e3b47ede7db13d75175eb',
     ContentVariables: JSON.stringify({}),
   });
@@ -2854,13 +2874,18 @@ async function sendTwilioTemplate(to: string): Promise<void> {
 
 // ── Twilio free-form WhatsApp send (Body), with 24h-window template fallback ──
 async function sendTwilioFreeForm(to: string, body: string, mediaUrl?: string): Promise<void> {
+  if (!KVP_AUTO_REPLIES_ENABLED) return;
   const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID') || 'AC2bed17b2742df7031ebc7de2d726b62f';
   const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
   if (!authToken) {
     console.error('TWILIO_AUTH_TOKEN not configured, cannot send free-form message');
     return;
   }
-  const fromNumber = Deno.env.get('TWILIO_WHATSAPP_NUMBER') || 'whatsapp:+917411681616';
+  const fromNumber = Deno.env.get('TWILIO_WHATSAPP_NUMBER');
+  if (!fromNumber) {
+    console.error('TWILIO_WHATSAPP_NUMBER not configured, cannot send free-form message');
+    return;
+  }
   const fromFormatted = fromNumber.startsWith('whatsapp:') ? fromNumber : `whatsapp:${fromNumber}`;
   const toFormatted = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
 
