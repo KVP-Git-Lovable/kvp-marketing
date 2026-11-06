@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, RefreshCw, Send, Wrench, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, RefreshCw, Send, Wrench, CheckCircle2, XCircle, Loader2, Stethoscope } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -40,6 +40,7 @@ export default function WhatsAppTemplateDetails({ templateId, onBack }: { templa
   const [showSendTest, setShowSendTest] = useState(false);
   const [testTo, setTestTo] = useState("");
   const [testVars, setTestVars] = useState<Record<string, string>>({});
+  const [twilioCheck, setTwilioCheck] = useState<Record<string, any> | null>(null);
   const [verifyResult, setVerifyResult] = useState<{ ok: boolean; status: number; content_type: string | null; content_length: string | null; error?: string } | null>(null);
 
   const invoke = async (payload: Record<string, unknown>) => {
@@ -97,6 +98,12 @@ export default function WhatsAppTemplateDetails({ templateId, onBack }: { templa
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const twilioCheckMutation = useMutation({
+    mutationFn: () => invoke({ action: "twilio-check", template_id: templateId }),
+    onSuccess: (data) => setTwilioCheck(data),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const sendTestMutation = useMutation({
     mutationFn: () => invoke({ action: "send-test", template_id: templateId, to: testTo, variables: testVars }),
     onSuccess: () => {
@@ -132,6 +139,9 @@ export default function WhatsAppTemplateDetails({ templateId, onBack }: { templa
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending || !template.twilio_content_sid}>
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshMutation.isPending ? "animate-spin" : ""}`} /> Refresh Status
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => twilioCheckMutation.mutate()} disabled={twilioCheckMutation.isPending}>
+            {twilioCheckMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Stethoscope className="h-4 w-4 mr-2" />} Check Twilio
           </Button>
           <Button size="sm" onClick={() => setShowSendTest(true)} disabled={!template.twilio_content_sid || template.status !== "approved"} title={template.status !== "approved" ? "Only approved templates can be test-sent" : undefined}>
             <Send className="h-4 w-4 mr-2" /> Send Test
@@ -208,6 +218,41 @@ export default function WhatsAppTemplateDetails({ templateId, onBack }: { templa
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={!!twilioCheck} onOpenChange={(o) => !o && setTwilioCheck(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Twilio setup check</DialogTitle></DialogHeader>
+          {twilioCheck && (
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between gap-3"><span className="text-muted-foreground">Sending route</span><span className="font-medium text-right">{twilioCheck.route}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-muted-foreground">Sender (TWILIO_WHATSAPP_NUMBER)</span><span className="font-mono text-right">{twilioCheck.configured_sender || "not set"}</span></div>
+              <div className="flex justify-between gap-3"><span className="text-muted-foreground">Saved Account SID secret</span><span className="font-mono text-right">{twilioCheck.saved_account_sid || "not set"}</span></div>
+              {twilioCheck.template && (
+                <div className="rounded-md border p-2 space-y-1">
+                  <p className="font-medium">Template {twilioCheck.template.name}</p>
+                  <p>{twilioCheck.template.found_in_account ? "Found in this Twilio account" : "NOT found in this Twilio account"}{twilioCheck.template.account_sid ? ` (${twilioCheck.template.account_sid})` : ""}</p>
+                  {twilioCheck.template.error && <p className="text-destructive">{twilioCheck.template.error}</p>}
+                </div>
+              )}
+              <div className="rounded-md border p-2 space-y-1">
+                <p className="font-medium">WhatsApp senders on this account</p>
+                {twilioCheck.whatsapp_senders ? (
+                  <>
+                    <p className="font-mono break-all">{twilioCheck.whatsapp_senders.join(", ") || "none"}</p>
+                    <p className={twilioCheck.configured_sender_registered ? "text-green-600" : "text-destructive"}>
+                      {twilioCheck.configured_sender_registered ? "The configured sender is registered here." : "The configured sender is NOT registered on this account."}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground">Not available: {twilioCheck.whatsapp_senders_unavailable || "unknown"}</p>
+                )}
+              </div>
+              {twilioCheck.problem && <p className="text-destructive">{twilioCheck.problem}</p>}
+            </div>
+          )}
+          <DialogFooter><Button variant="outline" onClick={() => setTwilioCheck(null)}>Close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showSendTest} onOpenChange={setShowSendTest}>
         <DialogContent className="max-w-md">

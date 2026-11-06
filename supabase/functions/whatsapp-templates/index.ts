@@ -590,6 +590,67 @@ serve(async (req) => {
         return new Response(JSON.stringify(updated), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
+      // Read-only diagnostic: which Twilio credentials this project really uses, which
+      // account they belong to (masked) and whether that account owns the template and
+      // the configured WhatsApp sender. No secrets are returned.
+      if (action === 'twilio-check') {
+        const { template_id } = body;
+        const mask = (s: unknown) => {
+          const v = String(s || '');
+          return v.length > 10 ? `${v.slice(0, 6)}…${v.slice(-4)}` : (v ? '(short)' : null);
+        };
+        const viaGateway = !!(Deno.env.get('LOVABLE_API_KEY') && Deno.env.get('TWILIO_API_KEY'));
+        const twilio = getTwilioAuth();
+        const configuredSender = Deno.env.get('TWILIO_WHATSAPP_NUMBER') || null;
+        const out: Record<string, unknown> = {
+          route: viaGateway ? 'connector gateway' : (twilio ? 'direct (saved Account SID + token)' : 'none'),
+          configured_sender: configuredSender,
+          saved_account_sid: mask(Deno.env.get('TWILIO_ACCOUNT_SID')),
+        };
+        if (!twilio) {
+          out.problem = 'No Twilio credentials are configured for this project.';
+          return new Response(JSON.stringify(out), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+        const json = async (r: Response) => { try { return await r.json(); } catch { return null; } };
+
+        // 1) Does the account own this template? Content resources carry their account_sid.
+        if (template_id) {
+          const { data: t } = await supabase.from('whatsapp_templates').select('twilio_content_sid, name').eq('id', template_id).maybeSingle();
+          if (t?.twilio_content_sid) {
+            const r = await twilioFetch(`${CONTENT_API_BASE}/v1/Content/${t.twilio_content_sid}`, { headers: { 'Authorization': twilio.authHeader } });
+            const d = await json(r);
+            out.template = {
+              name: t.name, content_sid: t.twilio_content_sid, http_status: r.status,
+              found_in_account: r.ok, account_sid: r.ok ? mask(d?.account_sid) : null,
+              error: r.ok ? null : (d?.message || `HTTP ${r.status}`),
+            };
+          }
+        }
+
+        // 2) Is the configured sender a WhatsApp sender of this account? (Senders API; direct route only,
+        //    the connector gateway may not expose it.)
+        try {
+          const sendersUrl = 'https://messaging.twilio.com/v2/Channels/Senders?Channel=whatsapp&PageSize=50';
+          const r = viaGateway
+            ? await fetch(`${TWILIO_GATEWAY}/v2/Channels/Senders?Channel=whatsapp&PageSize=50`, {
+                headers: { 'Authorization': twilio.authHeader, 'X-Connection-Api-Key': String(twilio.gatewayKey) },
+              })
+            : await fetch(sendersUrl, { headers: { 'Authorization': twilio.authHeader } });
+          const d = await json(r);
+          if (r.ok && Array.isArray(d?.senders)) {
+            const ids: string[] = d.senders.map((s: { sender_id?: string }) => String(s.sender_id || '').replace(/^whatsapp:/, ''));
+            out.whatsapp_senders = ids;
+            out.configured_sender_registered = configuredSender ? ids.includes(configuredSender) : null;
+          } else {
+            out.whatsapp_senders_unavailable = d?.message || `HTTP ${r.status}`;
+          }
+        } catch (e) {
+          out.whatsapp_senders_unavailable = e instanceof Error ? e.message : 'request failed';
+        }
+
+        return new Response(JSON.stringify(out), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
       if (action === 'send-test') {
         const { template_id, to, variables } = body;
         if (!template_id || !to) {
