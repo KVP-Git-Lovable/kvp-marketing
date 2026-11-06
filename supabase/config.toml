@@ -131,3 +131,6 @@ verify_jwt = false
 
 [functions.process-journeys]
 verify_jwt = false
+
+[functions.journey-retry]
+verify_jwt = false

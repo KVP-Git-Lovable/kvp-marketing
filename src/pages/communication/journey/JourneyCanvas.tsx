@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { journeyNodeTypes } from "@/components/journey/JourneyNodes";
 import { NodePropertyPanel } from "@/components/journey/NodePropertyPanel";
 import { JourneySettingsPanel } from "@/components/journey/JourneySettingsPanel";
-import { JourneyAnalyticsPanel } from "@/components/journey/JourneyAnalyticsPanel";
+import { JourneyAnalyticsTab } from "@/components/journey/JourneyAnalyticsTab";
 import { EditJourneyDetailsDialog } from "@/components/journey/EditJourneyDetailsDialog";
 import { JourneyAudiencePreviewDialog } from "@/components/journey/JourneyAudiencePreviewDialog";
 import { useMessageResponseLiveCounts } from "@/hooks/useMessageResponseLiveCounts";
@@ -399,9 +399,9 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
 
         <TabsContent value="analytics">
           {journey && (
-            <JourneyAnalyticsPanel
+            <JourneyAnalyticsTab
               journeyId={journeyId}
-              canvasData={journey.canvas_data as unknown as React.ComponentProps<typeof JourneyAnalyticsPanel>["canvasData"]}
+              canvasData={journey.canvas_data as unknown as React.ComponentProps<typeof JourneyAnalyticsTab>["canvasData"]}
               enrolledCount={journey.enrolled_count}
               completedCount={journey.completed_count}
             />
