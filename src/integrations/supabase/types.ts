@@ -12566,6 +12566,57 @@ export type Database = {
           },
         ]
       }
+      journey_retry_schedule: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          journey_id: string
+          log_id: string
+          processed_at: string | null
+          result_message: string | null
+          scheduled_for: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          journey_id: string
+          log_id: string
+          processed_at?: string | null
+          result_message?: string | null
+          scheduled_for: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          journey_id?: string
+          log_id?: string
+          processed_at?: string | null
+          result_message?: string | null
+          scheduled_for?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journey_retry_schedule_journey_id_fkey"
+            columns: ["journey_id"]
+            isOneToOne: false
+            referencedRelation: "journeys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journey_retry_schedule_log_id_fkey"
+            columns: ["log_id"]
+            isOneToOne: false
+            referencedRelation: "journey_message_log"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       journey_schedules: {
         Row: {
           created_at: string
