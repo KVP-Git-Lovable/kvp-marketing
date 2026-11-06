@@ -337,11 +337,11 @@ serve(async (req) => {
         for (const tmpl of templates || []) {
           try {
             const [approvalResp, contentResp] = await Promise.all([
-              fetch(
+              twilioFetch(
                 `${CONTENT_API_BASE}/v1/Content/${tmpl.twilio_content_sid}/ApprovalRequests`,
                 { headers: { 'Authorization': twilio.authHeader } },
               ),
-              fetch(
+              twilioFetch(
                 `${CONTENT_API_BASE}/v1/Content/${tmpl.twilio_content_sid}`,
                 { headers: { 'Authorization': twilio.authHeader } },
               ),
@@ -416,11 +416,11 @@ serve(async (req) => {
         }
 
         const [twilioResponse, contentResp] = await Promise.all([
-          fetch(
+          twilioFetch(
             `${CONTENT_API_BASE}/v1/Content/${template.twilio_content_sid}/ApprovalRequests`,
             { headers: { 'Authorization': twilio.authHeader } },
           ),
-          fetch(
+          twilioFetch(
             `${CONTENT_API_BASE}/v1/Content/${template.twilio_content_sid}`,
             { headers: { 'Authorization': twilio.authHeader } },
           ),
