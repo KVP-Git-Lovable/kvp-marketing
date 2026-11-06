@@ -154,12 +154,15 @@ export default function WhatsAppTemplatesPanel() {
         });
         payload.variable_samples = samples;
       }
-      const response = await invoke(payload);
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "Failed to create template");
+      if (!templateData.name.trim() || !templateData.category || !storedBody?.trim()) {
+        throw new Error("Please fill in the template name, category and message text.");
       }
-      return response.json();
+      const response = await invoke(payload);
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || json?.success === false) {
+        throw new Error(json?.error || "Failed to create template");
+      }
+      return json;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-templates"] });
