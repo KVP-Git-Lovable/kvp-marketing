@@ -1,5 +1,5 @@
 # Architecture rules
-- Communication UI guards unsupported saved-list categories and reads structured Meta terms errors without changing database constraints or accepting third-party terms automatically.
+- Communication UI guards unsupported saved-list categories (institutional, distributor and event are all supported) and reads structured Meta terms errors without accepting third-party terms automatically.
 - Retailer card insights share `useRetailerInsights` and the existing `retailer-visit-insight` function instead of querying the Churn Detector, so card surfaces use identical Overview/Payments eligibility and narration.
 - AI Pitch product imagery is resolved separately in the client by exact product/variant ID; optional image failures never alter recommendations or order autofill.
 - AI Pitch compact labels and How to Pitch guidance derive in the client from existing recommendation and scheme data; no extra AI call is needed and full verified evidence remains accessible.

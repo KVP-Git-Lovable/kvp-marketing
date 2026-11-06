@@ -93,7 +93,7 @@ export function MarketingListViewBuilder({ open, onOpenChange, initialDatabaseTy
         return invokeEdge("marketing-list-views", { action: "update", id: listView.id, name, filters });
       }
       if (!canCreateMarketingListView(category)) {
-        throw new Error("Saved Event list views are not supported by this database setup. No list view was created.");
+        throw new Error("This database type cannot be saved as a list view. No list view was created.");
       }
       return invokeEdge("marketing-list-views", { action: "create", database_type: category, name, filters });
     },
@@ -138,9 +138,6 @@ export function MarketingListViewBuilder({ open, onOpenChange, initialDatabaseTy
                 ))}
               </SelectContent>
             </Select>
-            {!listView && category === "event" && (
-              <p role="alert" className="mt-2 text-sm text-destructive">Saved Event list views are not supported by this database setup.</p>
-            )}
           </div>
 
           <div className="space-y-2">

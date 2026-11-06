@@ -1,6 +1,7 @@
-// Saved list views have a narrower constraint than marketing contacts.
+// marketing_contact_list_views.database_type allows the same three databases as marketing_contacts
+// (the check was widened to include "event"), so any of them can be saved as a list view.
 export function canCreateMarketingListView(databaseType: string): boolean {
-  return databaseType === "institutional" || databaseType === "distributor";
+  return databaseType === "institutional" || databaseType === "distributor" || databaseType === "event";
 }
 
 export function metaTermsUrl(value: unknown): string | undefined {

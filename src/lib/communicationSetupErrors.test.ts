@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { canCreateMarketingListView, metaTermsUrl, readMetaFailure } from "./communicationSetupErrors";
 
 describe("communication setup failures", () => {
-  it("prevents the Event category from violating the saved-list constraint", () => {
-    expect(canCreateMarketingListView("event")).toBe(false);
+  it("allows every marketing database, including Event, to be saved as a list view", () => {
+    expect(canCreateMarketingListView("event")).toBe(true);
     expect(canCreateMarketingListView("institutional")).toBe(true);
     expect(canCreateMarketingListView("distributor")).toBe(true);
     expect(canCreateMarketingListView("")).toBe(false);
+    expect(canCreateMarketingListView("unknown")).toBe(false);
   });
   it("preserves Meta's terms requirement from a non-success response", async () => {
     const url = "https://business.facebook.com/ads/manage/customaudiences/tos/?act=2135109103791264";
