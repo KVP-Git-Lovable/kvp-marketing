@@ -1359,7 +1359,7 @@ serve(async (req) => {
       return json(data);
     }
 
-    return json({ error: `Unknown action: ${action}` }, 400);
+    return json({ success: false, error: `Unknown action: ${action}` }, 200);
   } catch (error) {
     console.error('Error:', error);
     const metaSubcode = (error as { metaSubcode?: unknown })?.metaSubcode;
