@@ -131,7 +131,7 @@ serve(async (req) => {
 
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing authorization' }), {
+      return new Response(JSON.stringify({ success: false, error: 'Missing authorization' }), {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -140,7 +140,7 @@ serve(async (req) => {
       authHeader.replace('Bearer ', '')
     );
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      return new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -159,7 +159,7 @@ serve(async (req) => {
           .single();
 
         if (error) {
-          return new Response(JSON.stringify({ error: error.message }), {
+          return new Response(JSON.stringify({ success: false, error: error.message }), {
             status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
@@ -174,7 +174,7 @@ serve(async (req) => {
 
       const { data, error } = await query;
       if (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
+        return new Response(JSON.stringify({ success: false, error: error.message }), {
           status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
@@ -194,7 +194,7 @@ serve(async (req) => {
         .eq('id', template_id);
 
       if (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
+        return new Response(JSON.stringify({ success: false, error: error.message }), {
           status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
@@ -211,7 +211,7 @@ serve(async (req) => {
       if (action === 'import-from-twilio') {
         const twilio = getTwilioAuth();
         if (!twilio) {
-          return new Response(JSON.stringify({ error: 'Twilio credentials not configured' }), {
+          return new Response(JSON.stringify({ success: false, error: 'Twilio credentials not configured' }), {
             status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
@@ -223,7 +223,7 @@ serve(async (req) => {
         if (!resp.ok) {
           const errText = await resp.text();
           console.error('Twilio Content API list error:', errText);
-          return new Response(JSON.stringify({ error: resp.status === 401 ? 'Twilio sign-in failed: the saved Twilio Account SID or Auth Token is wrong. Update them in the project secrets.' : `Twilio API error: ${resp.status}` }), {
+          return new Response(JSON.stringify({ success: false, error: resp.status === 401 ? 'Twilio sign-in failed: the saved Twilio Account SID or Auth Token is wrong. Update them in the project secrets.' : `Twilio API error: ${resp.status}` }), {
             status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
@@ -322,7 +322,7 @@ serve(async (req) => {
       if (action === 'bulk-sync') {
         const twilio = getTwilioAuth();
         if (!twilio) {
-          return new Response(JSON.stringify({ error: 'Twilio credentials not configured' }), {
+          return new Response(JSON.stringify({ success: false, error: 'Twilio credentials not configured' }), {
             status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
@@ -391,14 +391,14 @@ serve(async (req) => {
         const { template_id } = body;
 
         if (!template_id) {
-          return new Response(JSON.stringify({ error: 'template_id is required' }), {
-            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          return new Response(JSON.stringify({ success: false, error: 'template_id is required' }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
 
         const twilio = getTwilioAuth();
         if (!twilio) {
-          return new Response(JSON.stringify({ error: 'Twilio credentials not configured' }), {
+          return new Response(JSON.stringify({ success: false, error: 'Twilio credentials not configured' }), {
             status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
@@ -410,7 +410,7 @@ serve(async (req) => {
           .single();
 
         if (!template || !template.twilio_content_sid) {
-          return new Response(JSON.stringify({ error: 'Template not found or not submitted to Twilio' }), {
+          return new Response(JSON.stringify({ success: false, error: 'Template not found or not submitted to Twilio' }), {
             status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
@@ -470,7 +470,7 @@ serve(async (req) => {
           .single();
 
         if (updateError) {
-          return new Response(JSON.stringify({ error: updateError.message }), {
+          return new Response(JSON.stringify({ success: false, error: updateError.message }), {
             status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
@@ -488,8 +488,8 @@ serve(async (req) => {
           target = t?.twilio_media_url || '';
         }
         if (!target) {
-          return new Response(JSON.stringify({ error: 'No media URL to check' }), {
-            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          return new Response(JSON.stringify({ success: false, error: 'No media URL to check' }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
         try {
@@ -513,19 +513,19 @@ serve(async (req) => {
       if (action === 'repair-media-url' || action === 'refresh-media-cache') {
         const { template_id } = body;
         if (!template_id) {
-          return new Response(JSON.stringify({ error: 'template_id is required' }), {
-            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          return new Response(JSON.stringify({ success: false, error: 'template_id is required' }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
         const twilio = getTwilioAuth();
         if (!twilio) {
-          return new Response(JSON.stringify({ error: 'Twilio credentials not configured' }), {
+          return new Response(JSON.stringify({ success: false, error: 'Twilio credentials not configured' }), {
             status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
         const { data: tmpl } = await supabase.from('whatsapp_templates').select('*').eq('id', template_id).single();
         if (!tmpl) {
-          return new Response(JSON.stringify({ error: 'Template not found' }), {
+          return new Response(JSON.stringify({ success: false, error: 'Template not found' }), {
             status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
@@ -556,7 +556,7 @@ serve(async (req) => {
         });
         const createData = await createResp.json();
         if (!createResp.ok || !createData.sid) {
-          return new Response(JSON.stringify({ error: createData?.message || 'Failed to create replacement Content' }), {
+          return new Response(JSON.stringify({ success: false, error: createData?.message || 'Failed to create replacement Content' }), {
             status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
@@ -583,7 +583,7 @@ serve(async (req) => {
           status: 'submitted',
         }).eq('id', template_id).select().single();
         if (updErr) {
-          return new Response(JSON.stringify({ error: updErr.message }), {
+          return new Response(JSON.stringify({ success: false, error: updErr.message }), {
             status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
@@ -654,24 +654,24 @@ serve(async (req) => {
       if (action === 'send-test') {
         const { template_id, to, variables } = body;
         if (!template_id || !to) {
-          return new Response(JSON.stringify({ error: 'template_id and to are required' }), {
-            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          return new Response(JSON.stringify({ success: false, error: 'template_id and to are required' }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
         const { data: tmpl } = await supabase.from('whatsapp_templates').select('twilio_content_sid, status, name, body').eq('id', template_id).single();
         if (!tmpl?.twilio_content_sid) {
-          return new Response(JSON.stringify({ error: 'Template has not been submitted to Twilio yet' }), {
-            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          return new Response(JSON.stringify({ success: false, error: 'Template has not been submitted to Twilio yet' }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
         if (tmpl.status !== 'approved') {
-          return new Response(JSON.stringify({ error: 'Template is not approved yet — test sends can only use an approved template' }), {
-            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          return new Response(JSON.stringify({ success: false, error: 'Template is not approved yet — test sends can only use an approved template' }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
         const twilio = getTwilioAuth();
         if (!twilio) {
-          return new Response(JSON.stringify({ error: 'Twilio credentials not configured' }), {
+          return new Response(JSON.stringify({ success: false, error: 'Twilio credentials not configured' }), {
             status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
@@ -763,21 +763,21 @@ serve(async (req) => {
       }
 
       if (!/^[a-z][a-z0-9_]*$/.test(name)) {
-        return new Response(JSON.stringify({ error: 'Name must be lowercase with underscores only' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        return new Response(JSON.stringify({ success: false, error: 'Name must be lowercase with underscores only' }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       if (!['UTILITY', 'MARKETING', 'AUTHENTICATION'].includes(category)) {
-        return new Response(JSON.stringify({ error: 'Invalid category' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        return new Response(JSON.stringify({ success: false, error: 'Invalid category' }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       if (contentType === 'media') {
         if (typeof mediaUrl !== 'string' || mediaUrl.trim().length === 0) {
-          return new Response(JSON.stringify({ error: 'media_url is required for media templates' }), {
-            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          return new Response(JSON.stringify({ success: false, error: 'media_url is required for media templates' }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
       }
@@ -786,8 +786,8 @@ serve(async (req) => {
       let ctaActions: CtaAction[] = [];
       if (contentType === 'call_to_action') {
         if (!Array.isArray(ctaActionsRaw) || ctaActionsRaw.length === 0 || ctaActionsRaw.length > 2) {
-          return new Response(JSON.stringify({ error: 'call_to_action requires 1-2 actions' }), {
-            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          return new Response(JSON.stringify({ success: false, error: 'call_to_action requires 1-2 actions' }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
         for (const a of ctaActionsRaw) {
@@ -795,23 +795,23 @@ serve(async (req) => {
           const type = a.type === 'PHONE_NUMBER' ? 'PHONE_NUMBER' : 'URL';
           const title = typeof a.title === 'string' ? a.title.trim() : '';
           if (!title) {
-            return new Response(JSON.stringify({ error: 'Each CTA button needs a title' }), {
-              status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            return new Response(JSON.stringify({ success: false, error: 'Each CTA button needs a title' }), {
+              status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
           }
           if (type === 'URL') {
             const url = typeof a.url === 'string' ? a.url.trim() : '';
             if (!url) {
-              return new Response(JSON.stringify({ error: `CTA "${title}" needs a URL` }), {
-                status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              return new Response(JSON.stringify({ success: false, error: `CTA "${title}" needs a URL` }), {
+                status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
               });
             }
             ctaActions.push({ type, title, url });
           } else {
             const phone = typeof a.phone === 'string' ? a.phone.trim() : '';
             if (!phone) {
-              return new Response(JSON.stringify({ error: `CTA "${title}" needs a phone number` }), {
-                status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              return new Response(JSON.stringify({ success: false, error: `CTA "${title}" needs a phone number` }), {
+                status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
               });
             }
             ctaActions.push({ type, title, phone });
@@ -855,7 +855,7 @@ serve(async (req) => {
           JSON.stringify({
             error: `Sample value required for variable(s): ${missingSamples.map((k) => `{{${k}}}`).join(', ')}`,
           }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
 
@@ -879,7 +879,7 @@ serve(async (req) => {
         .single();
 
       if (insertError) {
-        return new Response(JSON.stringify({ error: insertError.message }), {
+        return new Response(JSON.stringify({ success: false, error: insertError.message }), {
           status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
@@ -943,12 +943,12 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+    return new Response(JSON.stringify({ success: false, error: 'Method not allowed' }), {
       status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error('Error:', error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
+    return new Response(JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
