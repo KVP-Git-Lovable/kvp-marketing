@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Link2, Unlink, RefreshCw, Facebook, Instagram, CheckCircle2, Save } from "lucide-react";
+import { Link2, Unlink, RefreshCw, Facebook, Instagram, CheckCircle2, Save, Stethoscope } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
@@ -47,6 +48,7 @@ export default function MetaConnectionTab() {
   const popupRef = useRef<Window | null>(null);
   const pollRef = useRef<number | null>(null);
 
+  const [igCheck, setIgCheck] = useState<Record<string, any> | null>(null);
   const [defaultPageId, setDefaultPageId] = useState("");
   const [defaultInstagramId, setDefaultInstagramId] = useState("");
   const [defaultAdAccountId, setDefaultAdAccountId] = useState("");
@@ -191,6 +193,12 @@ export default function MetaConnectionTab() {
     },
   });
 
+  const checkInstagramMutation = useMutation({
+    mutationFn: () => invoke("instagram_check"),
+    onSuccess: (data) => setIgCheck(data),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const refreshInstagramMutation = useMutation({
     mutationFn: () => invoke("sync_instagram_accounts"),
     onSuccess: (data) => {
@@ -278,9 +286,14 @@ export default function MetaConnectionTab() {
                 <div className="pt-3">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-sm font-medium flex items-center gap-1.5"><Instagram className="h-3.5 w-3.5" /> Connected Instagram Accounts</p>
-                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => refreshInstagramMutation.mutate()} disabled={refreshInstagramMutation.isPending}>
-                      <RefreshCw className={`h-3 w-3 mr-1 ${refreshInstagramMutation.isPending ? "animate-spin" : ""}`} /> Refresh
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => checkInstagramMutation.mutate()} disabled={checkInstagramMutation.isPending}>
+                        <Stethoscope className={`h-3 w-3 mr-1 ${checkInstagramMutation.isPending ? "animate-pulse" : ""}`} /> Check Instagram
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => refreshInstagramMutation.mutate()} disabled={refreshInstagramMutation.isPending}>
+                        <RefreshCw className={`h-3 w-3 mr-1 ${refreshInstagramMutation.isPending ? "animate-spin" : ""}`} /> Refresh
+                      </Button>
+                    </div>
                   </div>
                   <div className="space-y-1">
                     {igAccounts.length === 0 ? (
@@ -360,6 +373,54 @@ export default function MetaConnectionTab() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!igCheck} onOpenChange={(o) => !o && setIgCheck(null)}>
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Instagram check (what Meta returns)</DialogTitle></DialogHeader>
+          {igCheck && (
+            <div className="space-y-3 text-sm">
+              <div className="space-y-2">
+                <p className="font-medium">Facebook Pages</p>
+                {(igCheck.pages || []).map((p: any) => (
+                  <div key={p.page_id} className="rounded-md border p-2 space-y-0.5">
+                    <p className="font-medium">{p.page_name}</p>
+                    <p>instagram_business_account: <span className="font-mono">{p.instagram_business_account ? `@${p.instagram_business_account.username || "?"} (${p.instagram_business_account.id})` : (p.instagram_business_account_error ? "error" : "none")}</span></p>
+                    {p.instagram_business_account_error && <p className="text-destructive text-xs break-words">{p.instagram_business_account_error}</p>}
+                    <p>connected_instagram_account: <span className="font-mono">{p.connected_instagram_account ? `@${p.connected_instagram_account.username || "?"} (${p.connected_instagram_account.id})` : (p.connected_instagram_account_error ? "error" : "none")}</span></p>
+                    {p.connected_instagram_account_error && <p className="text-destructive text-xs break-words">{p.connected_instagram_account_error}</p>}
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-1">
+                <p className="font-medium">Permissions granted to this login</p>
+                {igCheck.permissions_error ? (
+                  <p className="text-destructive text-xs break-words">{igCheck.permissions_error}</p>
+                ) : (
+                  <p className="font-mono text-xs break-words">
+                    {(igCheck.permissions || []).map((x: any) => `${x.permission}${x.status === "granted" ? "" : ` (${x.status})`}`).join(", ") || "none"}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Instagram permissions present: {(igCheck.permissions || []).filter((x: any) => x.status === "granted" && String(x.permission).startsWith("instagram")).map((x: any) => x.permission).join(", ") || "none"}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <p className="font-medium">Business portfolios and the Instagram accounts they own</p>
+                {igCheck.businesses_error && <p className="text-destructive text-xs break-words">{igCheck.businesses_error}</p>}
+                {(igCheck.businesses || []).map((b: any) => (
+                  <div key={b.id} className="rounded-md border p-2 space-y-0.5">
+                    <p className="font-medium">{b.name}</p>
+                    {b.owned_instagram_accounts_error
+                      ? <p className="text-destructive text-xs break-words">{b.owned_instagram_accounts_error}</p>
+                      : <p className="font-mono text-xs">{(b.owned_instagram_accounts || []).map((a: any) => `@${a.username || a.id}`).join(", ") || "none"}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <DialogFooter><Button variant="outline" onClick={() => setIgCheck(null)}>Close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

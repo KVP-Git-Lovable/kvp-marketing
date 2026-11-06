@@ -377,6 +377,52 @@ serve(async (req) => {
       return json({ synced });
     }
 
+    // Read-only diagnostic: what Meta itself says about each Page's Instagram link, which
+    // permissions this login was actually granted, and which Instagram accounts the user's
+    // business portfolios own. Nothing is written and no token is returned.
+    if (action === 'instagram_check') {
+      const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+      const { data: pageRows } = await supabase.from('meta_pages').select('*').eq('connection_id', connection.id).order('page_name');
+      const pages: Array<Record<string, unknown>> = [];
+      for (const page of pageRows || []) {
+        let token = accessToken;
+        try { if (page.page_token_enc) token = await decryptToken(page.page_token_enc, encKey); } catch { /* fall back to the user token */ }
+        const entry: Record<string, unknown> = { page_name: page.page_name, page_id: page.page_id, stored_instagram_id: page.instagram_business_id || null };
+        for (const field of ['instagram_business_account', 'connected_instagram_account']) {
+          try {
+            const r = await graph(`/${page.page_id}`, token, { params: { fields: `${field}{id,username}` } });
+            entry[field] = r[field] || null;
+          } catch (e) {
+            entry[`${field}_error`] = errMsg(e);
+          }
+        }
+        pages.push(entry);
+      }
+
+      let permissions: Array<{ permission: string; status: string }> = [];
+      let permissionsError: string | null = null;
+      try {
+        const r = await graph('/me/permissions', accessToken);
+        permissions = (r.data || []).map((p: { permission: string; status: string }) => ({ permission: p.permission, status: p.status }));
+      } catch (e) { permissionsError = errMsg(e); }
+
+      const businesses: Array<Record<string, unknown>> = [];
+      let businessesError: string | null = null;
+      try {
+        const b = await graph('/me/businesses', accessToken, { params: { fields: 'id,name', limit: '25' } });
+        for (const biz of b.data || []) {
+          const entry: Record<string, unknown> = { id: biz.id, name: biz.name };
+          try {
+            const ig = await graph(`/${biz.id}/owned_instagram_accounts`, accessToken, { params: { fields: 'id,username', limit: '50' } });
+            entry.owned_instagram_accounts = (ig.data || []).map((a: { id: string; username?: string }) => ({ id: a.id, username: a.username || null }));
+          } catch (e) { entry.owned_instagram_accounts_error = errMsg(e); }
+          businesses.push(entry);
+        }
+      } catch (e) { businessesError = errMsg(e); }
+
+      return json({ pages, permissions, permissions_error: permissionsError, businesses, businesses_error: businessesError });
+    }
+
     if (action === 'list_ad_instagram_accounts') {
       const adAccountId = body.ad_account_id || connection.default_ad_account_id;
       if (!adAccountId) return json({ accounts: [] });
