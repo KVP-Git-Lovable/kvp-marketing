@@ -1,14 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { Buffer } from "node:buffer";
 
 // Records WhatsApp replies for KVP Marketing (shown in Journey Analytics → Conversations and
 // used for Reply Rate). It never replies: the response is always an empty TwiML document.
 // Point the sender's "incoming messages" webhook at this function instead of webhook-whatsapp.
-const BUILD = 'inbound-2026-11-06';
+const BUILD = 'inbound-2026-11-10';
 const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
-const xml = (status = 200) =>
-  new Response(EMPTY_TWIML, { status, headers: { 'Content-Type': 'text/xml', 'X-Inbound-Build': BUILD, 'Access-Control-Expose-Headers': 'x-inbound-build' } });
+// X-Inbound-Result says what happened (useful when checking the Twilio webhook): stored, duplicate, bad-signature, no-auth-token, error.
+const xml = (status = 200, result = 'ignored') =>
+  new Response(EMPTY_TWIML, { status, headers: { 'Content-Type': 'text/xml', 'X-Inbound-Build': BUILD, 'X-Inbound-Result': result, 'Access-Control-Expose-Headers': 'x-inbound-build, x-inbound-result' } });
 
 // Twilio signs the full URL plus the POST params sorted by key.
 function validSignature(url: string, params: Record<string, string>, signature: string, authToken: string): boolean {
@@ -30,15 +32,17 @@ serve(async (req) => {
     const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const signature = req.headers.get('x-twilio-signature') ?? '';
-    if (authToken && !validSignature(`${supabaseUrl}/functions/v1/whatsapp-inbound`, params, signature, authToken)) {
+    // Fail closed: without the auth token we cannot tell Twilio from anyone else.
+    if (!authToken) { console.error('whatsapp-inbound: TWILIO_AUTH_TOKEN is not set'); return xml(500, 'no-auth-token'); }
+    if (!validSignature(`${supabaseUrl}/functions/v1/whatsapp-inbound`, params, signature, authToken)) {
       console.warn('whatsapp-inbound: signature mismatch');
-      return xml(403);
+      return xml(403, 'bad-signature');
     }
 
     const sid = params.MessageSid || params.SmsSid;
     const from = (params.From || '').replace(/^whatsapp:/, '');
     const to = (params.To || '').replace(/^whatsapp:/, '');
-    if (!sid || !from) return xml();
+    if (!sid || !from) return xml(200, 'ignored');
 
     const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
     const { data: existing } = await supabase.from('whatsapp_messages').select('id').eq('twilio_sid', sid).maybeSingle();
@@ -48,11 +52,12 @@ serve(async (req) => {
         direction: 'inbound', from_number: from, to_number: to, body, twilio_sid: sid, status: 'received',
         media_url: params.MediaUrl0 || null,
       });
-      if (error) console.error('whatsapp-inbound insert failed:', error.message);
+      if (error) { console.error('whatsapp-inbound insert failed:', error.message); return xml(200, 'error'); }
+      return xml(200, 'stored');
     }
-    return xml();
+    return xml(200, 'duplicate');
   } catch (err) {
     console.error('whatsapp-inbound failed:', err);
-    return xml(); // never make Twilio retry or send an error message to the contact
+    return xml(200, 'error'); // never make Twilio retry or send an error message to the contact
   }
 });
