@@ -12448,13 +12448,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "journey_message_log_enrollment_id_fkey"
-            columns: ["enrollment_id"]
-            isOneToOne: false
-            referencedRelation: "journey_enrollments"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "journey_message_log_journey_id_fkey"
             columns: ["journey_id"]
             isOneToOne: false
