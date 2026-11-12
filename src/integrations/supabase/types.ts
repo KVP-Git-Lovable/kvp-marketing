@@ -12668,10 +12668,13 @@ export type Database = {
           deleted_by: string | null
           description: string | null
           end_date: string | null
+          expected_response_pct: number | null
+          expected_revenue: number | null
           filters: Json
           id: string
           name: string
           objective: string | null
+          owner_id: string | null
           segment_type: string
           start_date: string | null
           status: string
@@ -12690,10 +12693,13 @@ export type Database = {
           deleted_by?: string | null
           description?: string | null
           end_date?: string | null
+          expected_response_pct?: number | null
+          expected_revenue?: number | null
           filters?: Json
           id?: string
           name: string
           objective?: string | null
+          owner_id?: string | null
           segment_type?: string
           start_date?: string | null
           status?: string
@@ -12712,10 +12718,13 @@ export type Database = {
           deleted_by?: string | null
           description?: string | null
           end_date?: string | null
+          expected_response_pct?: number | null
+          expected_revenue?: number | null
           filters?: Json
           id?: string
           name?: string
           objective?: string | null
+          owner_id?: string | null
           segment_type?: string
           start_date?: string | null
           status?: string
