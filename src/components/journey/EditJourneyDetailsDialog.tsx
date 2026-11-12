@@ -129,15 +129,15 @@ export function EditJourneyDetailsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[96vw] max-w-5xl max-h-[88vh] p-0 gap-0 flex flex-col">
-        <DialogHeader className="px-6 pt-6 pb-3 border-b"><DialogTitle>Edit Journey</DialogTitle></DialogHeader>
+      <DialogContent className="w-[96vw] max-w-[1500px] max-h-[92vh] p-0 gap-0 flex flex-col overflow-hidden">
+        <DialogHeader className="px-6 py-4" style={{ background: "linear-gradient(90deg,#2c3447 0%,#31394c 15%,#40434e 30%,#5d554d 50%,#7b684d 70%,#90754e 85%,#a6834f 100%)" }}><DialogTitle className="text-white">Edit Journey</DialogTitle></DialogHeader>
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           <div>
             <Label>Name</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Journey name" />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 items-start">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 items-start">
           <div className="space-y-3 rounded-lg border p-3">
             <Label className="text-sm font-medium">Campaign Details</Label>
             <div>
@@ -166,7 +166,6 @@ export function EditJourneyDetailsDialog({
               <Label className="text-xs text-muted-foreground">Description</Label>
               <Textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
-            <CampaignPlanningFields open={open} values={planning} onChange={setPlanning} />
           </div>
 
           {isMarketingJourney ? (
@@ -224,11 +223,15 @@ export function EditJourneyDetailsDialog({
               </Select>
             </div>
           )}
+          <div className="space-y-3 rounded-lg border p-3">
+            <Label className="text-sm font-medium">Planning</Label>
+            <CampaignPlanningFields open={open} values={planning} onChange={setPlanning} />
+            <CampaignPlanningSummary bare
+              contacts={isMarketingJourney && listViewId ? (audiencePreviewQuery.isFetching ? null : (audiencePreviewQuery.data?.count ?? 0)) : null}
+              budget={budgetCap} expectedRevenue={planning.expectedRevenue} expectedResponsePct={planning.expectedResponsePct}
+            />
           </div>
-          <CampaignPlanningSummary
-            contacts={isMarketingJourney && listViewId ? (audiencePreviewQuery.isFetching ? null : (audiencePreviewQuery.data?.count ?? 0)) : null}
-            budget={budgetCap} expectedRevenue={planning.expectedRevenue} expectedResponsePct={planning.expectedResponsePct}
-          />
+          </div>
         </div>
         <DialogFooter className="px-6 py-3 border-t gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

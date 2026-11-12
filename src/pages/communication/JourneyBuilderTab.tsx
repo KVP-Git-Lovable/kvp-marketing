@@ -592,14 +592,14 @@ export default function JourneyBuilderTab() {
       </Card>
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="w-[96vw] max-w-5xl max-h-[88vh] p-0 gap-0 flex flex-col">
-          <DialogHeader className="px-6 pt-6 pb-3 border-b"><DialogTitle>New Journey Campaign</DialogTitle></DialogHeader>
+        <DialogContent className="w-[96vw] max-w-[1500px] max-h-[92vh] p-0 gap-0 flex flex-col overflow-hidden">
+          <DialogHeader className="px-6 py-4" style={{ background: "linear-gradient(90deg,#2c3447 0%,#31394c 15%,#40434e 30%,#5d554d 50%,#7b684d 70%,#90754e 85%,#a6834f 100%)" }}><DialogTitle className="text-white">New Journey Campaign</DialogTitle></DialogHeader>
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
             <div>
               <Label>Journey Name</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. New Season Offer" />
             </div>
-            <div className="grid gap-4 md:grid-cols-2 items-start">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 items-start">
             <div className="space-y-3 rounded-lg border p-3">
               <Label className="text-sm font-medium">Campaign Details <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
               <div>
@@ -634,7 +634,6 @@ export default function JourneyBuilderTab() {
                 <Label className="text-xs text-muted-foreground">Description</Label>
                 <Textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What is this campaign for?" />
               </div>
-              <CampaignPlanningFields open={showCreate} values={planning} onChange={setPlanning} />
             </div>
             <div className="space-y-3 rounded-lg border p-3">
               <Label className="text-sm font-medium">Target Audience</Label>
@@ -676,11 +675,15 @@ export default function JourneyBuilderTab() {
                 </div>
               )}
             </div>
+            <div className="space-y-3 rounded-lg border p-3">
+              <Label className="text-sm font-medium">Planning</Label>
+              <CampaignPlanningFields open={showCreate} values={planning} onChange={setPlanning} />
+              <CampaignPlanningSummary bare
+                contacts={listViewId ? (audiencePreviewQuery.isFetching ? null : (audiencePreviewQuery.data?.count ?? 0)) : null}
+                budget={budgetCap} expectedRevenue={planning.expectedRevenue} expectedResponsePct={planning.expectedResponsePct}
+              />
             </div>
-            <CampaignPlanningSummary
-              contacts={listViewId ? (audiencePreviewQuery.isFetching ? null : (audiencePreviewQuery.data?.count ?? 0)) : null}
-              budget={budgetCap} expectedRevenue={planning.expectedRevenue} expectedResponsePct={planning.expectedResponsePct}
-            />
+            </div>
             <p className="text-xs text-muted-foreground">You'll build the message flow on the next screen using the visual canvas.</p>
           </div>
           <DialogFooter className="px-6 py-3 border-t gap-2 sm:gap-0">

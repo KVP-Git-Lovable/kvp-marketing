@@ -65,10 +65,12 @@ interface SummaryProps {
   budget: string;
   expectedRevenue: string;
   expectedResponsePct: string;
+  /** Render without its own card/title (used inside the Planning card). */
+  bare?: boolean;
 }
 
 /** Salesforce-style "Planning" read-out computed from what is entered; nothing is stored. */
-export function CampaignPlanningSummary({ contacts, budget, expectedRevenue, expectedResponsePct }: SummaryProps) {
+export function CampaignPlanningSummary({ contacts, budget, expectedRevenue, expectedResponsePct, bare }: SummaryProps) {
   const roi = expectedRoiPct(expectedRevenue, budget);
   const resp = expectedResponsePct.trim() !== "" && contacts != null ? Math.round((Number(expectedResponsePct) / 100) * contacts) : null;
   const rows: Array<[string, string]> = [
@@ -78,17 +80,21 @@ export function CampaignPlanningSummary({ contacts, budget, expectedRevenue, exp
     ["Expected Responses", resp == null ? "—" : resp.toLocaleString("en-IN")],
     ["Expected ROI", roi == null ? "—" : `${roi.toFixed(0)}%`],
   ];
+  const grid = (
+    <div className="grid grid-cols-2 gap-2">
+      {rows.map(([k, v]) => (
+        <div key={k} className="rounded-md bg-muted/50 px-2.5 py-1.5">
+          <p className="text-[11px] text-muted-foreground">{k}</p>
+          <p className={`text-sm font-semibold ${k === "Expected ROI" && roi != null ? (roi >= 0 ? "text-green-700" : "text-red-600") : ""}`}>{v}</p>
+        </div>
+      ))}
+    </div>
+  );
+  if (bare) return grid;
   return (
     <div className="rounded-lg border p-3 space-y-2">
       <Label className="text-sm font-medium">Planning</Label>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-        {rows.map(([k, v]) => (
-          <div key={k} className="rounded-md bg-muted/50 px-2.5 py-1.5">
-            <p className="text-[11px] text-muted-foreground">{k}</p>
-            <p className={`text-sm font-semibold ${k === "Expected ROI" && roi != null ? (roi >= 0 ? "text-green-700" : "text-red-600") : ""}`}>{v}</p>
-          </div>
-        ))}
-      </div>
+      {grid}
     </div>
   );
 }
