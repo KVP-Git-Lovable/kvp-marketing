@@ -42,6 +42,8 @@ interface JourneyDetail {
   sent_message_count: number;
 }
 
+import { JourneyActivityTimeline } from "@/components/journey/JourneyActivityTimeline";
+
 const approvalColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
   pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
@@ -146,6 +148,7 @@ export function JourneySettingsPanel({ journeyId, journey }: { journeyId: string
   const estimatedSpend = costPerMsg * journey.sent_message_count;
 
   return (
+    <div className="space-y-4">
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       <Card>
         <CardHeader className="pb-2">
@@ -273,6 +276,8 @@ export function JourneySettingsPanel({ journeyId, journey }: { journeyId: string
           </div>
         </CardContent>
       </Card>
+    </div>
+    <JourneyActivityTimeline journeyId={journeyId} />
     </div>
   );
 }

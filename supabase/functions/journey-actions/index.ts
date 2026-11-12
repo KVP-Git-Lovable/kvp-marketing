@@ -28,6 +28,28 @@ function parseCampaignFields(body: Record<string, unknown>, allowObjective: bool
       fields.budget_cap = n;
     }
   }
+  // Planning fields (informational only; the sending engine never reads them).
+  if (body.expected_revenue !== undefined) {
+    if (blank(body.expected_revenue)) fields.expected_revenue = null;
+    else {
+      const n = Number(body.expected_revenue);
+      if (!Number.isFinite(n) || n < 0) return { fields, error: 'expected_revenue must be a number >= 0' };
+      fields.expected_revenue = n;
+    }
+  }
+  if (body.expected_response_pct !== undefined) {
+    if (blank(body.expected_response_pct)) fields.expected_response_pct = null;
+    else {
+      const n = Number(body.expected_response_pct);
+      if (!Number.isFinite(n) || n < 0 || n > 100) return { fields, error: 'expected_response_pct must be between 0 and 100' };
+      fields.expected_response_pct = n;
+    }
+  }
+  if (body.owner_id !== undefined) {
+    if (blank(body.owner_id)) fields.owner_id = null;
+    else if (typeof body.owner_id === 'string' && /^[0-9a-f-]{36}$/i.test(body.owner_id)) fields.owner_id = body.owner_id;
+    else return { fields, error: 'Invalid owner_id' };
+  }
   if (body.description !== undefined) {
     fields.description = blank(body.description) ? null : String(body.description).slice(0, 2000);
   }
@@ -42,7 +64,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
   // Visible on every response (even a 401) so a deploy can be verified without a login.
-  'X-Journeys-Build': 'event-audience-2026-11-06',
+  'X-Journeys-Build': 'campaign-fields-2026-11-12',
 };
 
 // Journey CRUD + control, targeting this project's own `retailers` table as
@@ -266,6 +288,7 @@ serve(async (req) => {
           canvas_data,
           status: 'draft',
           created_by: user.id,
+          owner_id: campaign.fields.owner_id ?? user.id,
         }).select().single();
         if (error) {
           return new Response(JSON.stringify({ error: error.message }), {

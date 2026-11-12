@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { objectiveLabel, toDateTimeLocal, fromDateTimeLocal, isInvalidWindow } from "@/lib/journeyCampaign";
+import { objectiveLabel, toDateTimeLocal, fromDateTimeLocal, isInvalidWindow, isBlankOrInRange } from "@/lib/journeyCampaign";
+import { CampaignPlanningFields, CampaignPlanningSummary, type PlanningValues } from "@/components/journey/CampaignPlanningFields";
 
 import { MARKETING_SEGMENTS, MARKETING_SEGMENT_TYPES, segmentToDatabaseType } from "@/lib/marketingSegments";
 
@@ -31,11 +32,15 @@ interface Props {
   currentEndDate?: string | null;
   currentBudgetCap?: number | null;
   currentDescription?: string | null;
+  currentOwnerId?: string | null;
+  currentExpectedRevenue?: number | null;
+  currentExpectedResponsePct?: number | null;
 }
 
 export function EditJourneyDetailsDialog({
   open, onOpenChange, journeyId, currentName, currentSegmentType, currentListViewId, currentCategory,
   currentObjective, currentStartDate, currentEndDate, currentBudgetCap, currentDescription,
+  currentOwnerId, currentExpectedRevenue, currentExpectedResponsePct,
 }: Props) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
@@ -46,6 +51,7 @@ export function EditJourneyDetailsDialog({
   const [endDate, setEndDate] = useState("");
   const [budgetCap, setBudgetCap] = useState("");
   const [description, setDescription] = useState("");
+  const [planning, setPlanning] = useState<PlanningValues>({ ownerId: "", expectedRevenue: "", expectedResponsePct: "" });
 
   const isMarketingJourney = MARKETING_SEGMENT_TYPES.has(currentSegmentType);
 
@@ -59,7 +65,12 @@ export function EditJourneyDetailsDialog({
     setEndDate(toDateTimeLocal(currentEndDate));
     setBudgetCap(currentBudgetCap == null ? "" : String(currentBudgetCap));
     setDescription(currentDescription || "");
-  }, [open, currentName, currentCategory, currentSegmentType, currentListViewId, currentStartDate, currentEndDate, currentBudgetCap, currentDescription]);
+    setPlanning({
+      ownerId: currentOwnerId || "",
+      expectedRevenue: currentExpectedRevenue == null ? "" : String(currentExpectedRevenue),
+      expectedResponsePct: currentExpectedResponsePct == null ? "" : String(currentExpectedResponsePct),
+    });
+  }, [open, currentName, currentCategory, currentSegmentType, currentListViewId, currentStartDate, currentEndDate, currentBudgetCap, currentDescription, currentOwnerId, currentExpectedRevenue, currentExpectedResponsePct]);
 
   const { data: marketingListViews = [] } = useQuery({
     queryKey: ["marketing-list-views", segmentType],
@@ -96,6 +107,9 @@ export function EditJourneyDetailsDialog({
     end_date: fromDateTimeLocal(endDate),
     budget_cap: budgetCap.trim() === "" ? null : Number(budgetCap),
     description: description.trim() || null,
+    owner_id: planning.ownerId || null,
+    expected_revenue: planning.expectedRevenue.trim() === "" ? null : Number(planning.expectedRevenue),
+    expected_response_pct: planning.expectedResponsePct.trim() === "" ? null : Number(planning.expectedResponsePct),
   });
 
   const saveMutation = useMutation({
@@ -152,6 +166,7 @@ export function EditJourneyDetailsDialog({
               <Label className="text-xs text-muted-foreground">Description</Label>
               <Textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
+            <CampaignPlanningFields open={open} values={planning} onChange={setPlanning} />
           </div>
 
           {isMarketingJourney ? (
@@ -210,12 +225,16 @@ export function EditJourneyDetailsDialog({
             </div>
           )}
           </div>
+          <CampaignPlanningSummary
+            contacts={isMarketingJourney && listViewId ? (audiencePreviewQuery.isFetching ? null : (audiencePreviewQuery.data?.count ?? 0)) : null}
+            budget={budgetCap} expectedRevenue={planning.expectedRevenue} expectedResponsePct={planning.expectedResponsePct}
+          />
         </div>
         <DialogFooter className="px-6 py-3 border-t gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
             onClick={() => saveMutation.mutate()}
-            disabled={!name.trim() || saveMutation.isPending || (isMarketingJourney && !listViewId) || isInvalidWindow(startDate, endDate) || (budgetCap.trim() !== "" && Number(budgetCap) < 0)}
+            disabled={!name.trim() || saveMutation.isPending || (isMarketingJourney && !listViewId) || isInvalidWindow(startDate, endDate) || (budgetCap.trim() !== "" && Number(budgetCap) < 0) || !isBlankOrInRange(planning.expectedRevenue, 0) || !isBlankOrInRange(planning.expectedResponsePct, 0, 100)}
           >
             {saveMutation.isPending ? "Saving..." : "Save Changes"}
           </Button>

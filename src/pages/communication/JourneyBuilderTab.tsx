@@ -29,7 +29,8 @@ import { format } from "date-fns";
 import JourneyCanvas, { defaultScaffold } from "./journey/JourneyCanvas";
 import { EditJourneyDetailsDialog } from "@/components/journey/EditJourneyDetailsDialog";
 import { Textarea } from "@/components/ui/textarea";
-import { JOURNEY_OBJECTIVES, objectiveLabel, fromDateTimeLocal, isInvalidWindow } from "@/lib/journeyCampaign";
+import { JOURNEY_OBJECTIVES, objectiveLabel, fromDateTimeLocal, isInvalidWindow, isBlankOrInRange } from "@/lib/journeyCampaign";
+import { CampaignPlanningFields, CampaignPlanningSummary, type PlanningValues } from "@/components/journey/CampaignPlanningFields";
 import { MARKETING_SEGMENTS, isMarketingSegment, segmentToDatabaseType } from "@/lib/marketingSegments";
 import { DeletedJourneysDialog } from "@/components/journey/DeletedJourneysDialog";
 
@@ -50,6 +51,9 @@ interface Journey {
   end_date?: string | null;
   budget_cap?: number | null;
   description?: string | null;
+  owner_id?: string | null;
+  expected_revenue?: number | null;
+  expected_response_pct?: number | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -90,6 +94,7 @@ export default function JourneyBuilderTab() {
   const [endDate, setEndDate] = useState<string>("");
   const [budgetCap, setBudgetCap] = useState<string>("");
   const [description, setDescription] = useState<string>("");
+  const [planning, setPlanning] = useState<PlanningValues>({ ownerId: "", expectedRevenue: "", expectedResponsePct: "" });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [initialTab, setInitialTab] = useState<string>("canvas");
   const [deleteTargetId, setDeleteTargetId] = useState<string | string[] | null>(null);
@@ -244,6 +249,9 @@ export default function JourneyBuilderTab() {
         end_date: fromDateTimeLocal(endDate) ?? undefined,
         budget_cap: budgetCap.trim() === "" ? undefined : Number(budgetCap),
         description: description.trim() || undefined,
+        owner_id: planning.ownerId || undefined,
+        expected_revenue: planning.expectedRevenue.trim() === "" ? undefined : Number(planning.expectedRevenue),
+        expected_response_pct: planning.expectedResponsePct.trim() === "" ? undefined : Number(planning.expectedResponsePct),
       });
     },
     onSuccess: (data) => {
@@ -257,6 +265,7 @@ export default function JourneyBuilderTab() {
       setEndDate("");
       setBudgetCap("");
       setDescription("");
+      setPlanning({ ownerId: "", expectedRevenue: "", expectedResponsePct: "" });
       toast.success("Journey created as draft");
       setInitialTab("canvas");
       setEditingId(data.id);
@@ -625,6 +634,7 @@ export default function JourneyBuilderTab() {
                 <Label className="text-xs text-muted-foreground">Description</Label>
                 <Textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What is this campaign for?" />
               </div>
+              <CampaignPlanningFields open={showCreate} values={planning} onChange={setPlanning} />
             </div>
             <div className="space-y-3 rounded-lg border p-3">
               <Label className="text-sm font-medium">Target Audience</Label>
@@ -667,13 +677,17 @@ export default function JourneyBuilderTab() {
               )}
             </div>
             </div>
+            <CampaignPlanningSummary
+              contacts={listViewId ? (audiencePreviewQuery.isFetching ? null : (audiencePreviewQuery.data?.count ?? 0)) : null}
+              budget={budgetCap} expectedRevenue={planning.expectedRevenue} expectedResponsePct={planning.expectedResponsePct}
+            />
             <p className="text-xs text-muted-foreground">You'll build the message flow on the next screen using the visual canvas.</p>
           </div>
           <DialogFooter className="px-6 py-3 border-t gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
             <Button
               onClick={() => createMutation.mutate()}
-              disabled={!name.trim() || !listViewId || isInvalidWindow(startDate, endDate) || (budgetCap.trim() !== "" && Number(budgetCap) < 0) || createMutation.isPending}
+              disabled={!name.trim() || !listViewId || isInvalidWindow(startDate, endDate) || (budgetCap.trim() !== "" && Number(budgetCap) < 0) || !isBlankOrInRange(planning.expectedRevenue, 0) || !isBlankOrInRange(planning.expectedResponsePct, 0, 100) || createMutation.isPending}
             >
               {createMutation.isPending ? "Creating..." : "Create & Open Canvas"}
             </Button>
@@ -695,6 +709,9 @@ export default function JourneyBuilderTab() {
           currentEndDate={editDetailsTarget.end_date}
           currentBudgetCap={editDetailsTarget.budget_cap}
           currentDescription={editDetailsTarget.description}
+          currentOwnerId={editDetailsTarget.owner_id ?? editDetailsTarget.created_by}
+          currentExpectedRevenue={editDetailsTarget.expected_revenue}
+          currentExpectedResponsePct={editDetailsTarget.expected_response_pct}
         />
       )}
 

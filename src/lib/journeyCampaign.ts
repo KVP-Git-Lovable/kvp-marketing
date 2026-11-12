@@ -32,3 +32,18 @@ export const fromDateTimeLocal = (value: string): string | null => {
 /** True when both dates are set and the end is not after the start. */
 export const isInvalidWindow = (start: string, end: string): boolean =>
   !!start && !!end && new Date(end) <= new Date(start);
+
+/** Expected ROI % = (expected revenue - budget) / budget. Null unless both are set and budget > 0. */
+export const expectedRoiPct = (expectedRevenue: number | string | null | undefined, budget: number | string | null | undefined): number | null => {
+  const rev = expectedRevenue === null || expectedRevenue === undefined || expectedRevenue === "" ? NaN : Number(expectedRevenue);
+  const cost = budget === null || budget === undefined || budget === "" ? NaN : Number(budget);
+  if (!Number.isFinite(rev) || !Number.isFinite(cost) || cost <= 0) return null;
+  return ((rev - cost) / cost) * 100;
+};
+
+/** True when the value is blank or a number inside [min, max]. */
+export const isBlankOrInRange = (value: string, min: number, max = Number.POSITIVE_INFINITY): boolean => {
+  if (value.trim() === "") return true;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= min && n <= max;
+};
