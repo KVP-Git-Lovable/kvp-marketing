@@ -6,6 +6,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { journeyActionsFetch } from "@/lib/journeyActionsFetch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -79,12 +80,7 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
   const [audiencePreviewOpen, setAudiencePreviewOpen] = useState(false);
 
   const invoke = async (payload: Record<string, unknown>) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/journey-actions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-      body: JSON.stringify(payload),
-    });
+    const response = await journeyActionsFetch({ method: "POST", body: payload });
     const json = await response.json();
     if (!response.ok) throw new Error(json.error || "Request failed");
     return json;
@@ -93,10 +89,7 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
   const { data: journey } = useQuery({
     queryKey: ["journey-detail", journeyId],
     queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/journey-actions?id=${journeyId}`, {
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
+      const res = await journeyActionsFetch({ query: `id=${encodeURIComponent(journeyId)}` });
       if (!res.ok) throw new Error("Failed to load journey");
       return res.json() as Promise<JourneyDetail>;
     },

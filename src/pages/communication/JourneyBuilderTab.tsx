@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { journeyActionsFetch } from "@/lib/journeyActionsFetch";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -162,12 +163,7 @@ export default function JourneyBuilderTab() {
   });
 
   const invoke = async (payload: Record<string, unknown>, method: "GET" | "POST" | "DELETE" = "POST") => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/journey-actions`, {
-      method,
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-      body: method === "GET" ? undefined : JSON.stringify(payload),
-    });
+    const response = await journeyActionsFetch({ method, body: method === "GET" ? undefined : payload });
     const json = await response.json();
     if (!response.ok) throw new Error(json.error || "Request failed");
     return json;
@@ -176,10 +172,7 @@ export default function JourneyBuilderTab() {
   const { data: journeys = [], isLoading } = useQuery({
     queryKey: ["journeys"],
     queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/journey-actions`, {
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
+      const res = await journeyActionsFetch();
       if (!res.ok) throw new Error("Failed to load journeys");
       return res.json() as Promise<Journey[]>;
     },
