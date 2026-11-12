@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { journeyActionsFetch } from "@/lib/journeyActionsFetch";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,12 +69,7 @@ export function JourneySettingsPanel({ journeyId, journey }: { journeyId: string
   const [searching, setSearching] = useState(false);
 
   const invoke = async (payload: Record<string, unknown>) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/journey-actions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-      body: JSON.stringify(payload),
-    });
+    const response = await journeyActionsFetch({ method: "POST", body: payload });
     const json = await response.json();
     if (!response.ok) throw new Error(json.error || "Request failed");
     return json;

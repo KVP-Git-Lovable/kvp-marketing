@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { journeyActionsFetch } from "@/lib/journeyActionsFetch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -85,12 +86,7 @@ export function EditJourneyDetailsDialog({
   });
 
   const invoke = async (payload: Record<string, unknown>) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/journey-actions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-      body: JSON.stringify(payload),
-    });
+    const response = await journeyActionsFetch({ method: "POST", body: payload });
     const json = await response.json();
     if (!response.ok) throw new Error(json.error || "Request failed");
     return json;
