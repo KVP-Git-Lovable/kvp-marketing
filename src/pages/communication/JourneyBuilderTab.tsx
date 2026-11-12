@@ -583,13 +583,14 @@ export default function JourneyBuilderTab() {
       </Card>
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>New Journey Campaign</DialogTitle></DialogHeader>
-          <div className="space-y-4">
+        <DialogContent className="w-[96vw] max-w-5xl max-h-[88vh] p-0 gap-0 flex flex-col">
+          <DialogHeader className="px-6 pt-6 pb-3 border-b"><DialogTitle>New Journey Campaign</DialogTitle></DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
             <div>
               <Label>Journey Name</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. New Season Offer" />
             </div>
+            <div className="grid gap-4 md:grid-cols-2 items-start">
             <div className="space-y-3 rounded-lg border p-3">
               <Label className="text-sm font-medium">Campaign Details <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
               <div>
@@ -626,7 +627,7 @@ export default function JourneyBuilderTab() {
               </div>
             </div>
             <div className="space-y-3 rounded-lg border p-3">
-              <Label className="text-sm font-medium">Target Audience — Retailer View</Label>
+              <Label className="text-sm font-medium">Target Audience</Label>
               <div>
                 <Label className="text-xs text-muted-foreground">Database</Label>
                 <Select value={segmentType} onValueChange={(v) => { setSegmentType(v); setListViewId(""); }}>
@@ -665,9 +666,10 @@ export default function JourneyBuilderTab() {
                 </div>
               )}
             </div>
+            </div>
             <p className="text-xs text-muted-foreground">You'll build the message flow on the next screen using the visual canvas.</p>
           </div>
-          <DialogFooter>
+          <DialogFooter className="px-6 py-3 border-t gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
             <Button
               onClick={() => createMutation.mutate()}

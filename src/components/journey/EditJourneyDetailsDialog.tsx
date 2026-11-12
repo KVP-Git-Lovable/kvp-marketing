@@ -115,14 +115,15 @@ export function EditJourneyDetailsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Edit Journey</DialogTitle></DialogHeader>
-        <div className="space-y-4">
+      <DialogContent className="w-[96vw] max-w-5xl max-h-[88vh] p-0 gap-0 flex flex-col">
+        <DialogHeader className="px-6 pt-6 pb-3 border-b"><DialogTitle>Edit Journey</DialogTitle></DialogHeader>
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           <div>
             <Label>Name</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Journey name" />
           </div>
 
+          <div className="grid gap-4 md:grid-cols-2 items-start">
           <div className="space-y-3 rounded-lg border p-3">
             <Label className="text-sm font-medium">Campaign Details</Label>
             <div>
@@ -155,7 +156,7 @@ export function EditJourneyDetailsDialog({
 
           {isMarketingJourney ? (
             <div className="space-y-3 rounded-lg border p-3">
-              <Label className="text-sm font-medium">Target Audience — Retailer View</Label>
+              <Label className="text-sm font-medium">Target Audience</Label>
               <div>
                 <Label className="text-xs text-muted-foreground">Database</Label>
                 <Select value={segmentType} onValueChange={(v) => { setSegmentType(v); setListViewId(""); }}>
@@ -208,8 +209,9 @@ export function EditJourneyDetailsDialog({
               </Select>
             </div>
           )}
+          </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="px-6 py-3 border-t gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
             onClick={() => saveMutation.mutate()}
