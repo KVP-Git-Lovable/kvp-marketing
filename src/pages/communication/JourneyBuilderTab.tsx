@@ -288,9 +288,10 @@ export default function JourneyBuilderTab() {
 
   const pauseMutation = useMutation({
     mutationFn: (journey_id: string) => invoke({ action: "pause", journey_id }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["journeys"] });
-      toast.success("Journey paused");
+      toast.success(data?.meta_paused > 0 ? `Journey paused — ${data.meta_paused} Meta ad set(s) paused too` : "Journey paused");
+      if (data?.meta_pause_errors?.length) toast.error(`Could not pause a Meta ad set: ${data.meta_pause_errors[0]}`);
     },
   });
 

@@ -12458,32 +12458,47 @@ export type Database = {
       }
       journey_meta_ad_links: {
         Row: {
+          applied_at: string | null
+          applied_end_at: string | null
+          applied_start_at: string | null
           created_at: string
           id: string
           journey_id: string
+          last_error: string | null
           meta_ad_set_row_id: string
           meta_custom_audience_row_id: string
           node_id: string
+          paused_by_journey: boolean
           pushed_count: number
           updated_at: string
         }
         Insert: {
+          applied_at?: string | null
+          applied_end_at?: string | null
+          applied_start_at?: string | null
           created_at?: string
           id?: string
           journey_id: string
+          last_error?: string | null
           meta_ad_set_row_id: string
           meta_custom_audience_row_id: string
           node_id: string
+          paused_by_journey?: boolean
           pushed_count?: number
           updated_at?: string
         }
         Update: {
+          applied_at?: string | null
+          applied_end_at?: string | null
+          applied_start_at?: string | null
           created_at?: string
           id?: string
           journey_id?: string
+          last_error?: string | null
           meta_ad_set_row_id?: string
           meta_custom_audience_row_id?: string
           node_id?: string
+          paused_by_journey?: boolean
           pushed_count?: number
           updated_at?: string
         }

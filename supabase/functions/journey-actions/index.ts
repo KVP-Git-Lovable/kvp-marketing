@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { adScheduleModeOf, resolveAdSchedule } from "../_shared/meta-ad-schedule.ts";
 
 const JOURNEY_OBJECTIVES = new Set(['lead_generation', 'engagement', 'awareness', 'conversion', 're_engagement', 'event_promotion']);
 
@@ -59,12 +60,56 @@ function parseCampaignFields(body: Record<string, unknown>, allowObjective: bool
   return { fields };
 }
 
+// ---- Meta Ad node helpers (schedule + pause/resume of the linked Ad Set) ----
+// All best effort: a Meta-side problem is recorded on journey_meta_ad_links and reported,
+// but never blocks publishing or pausing a journey.
+// deno-lint-ignore no-explicit-any
+async function callMetaApi(supabaseUrl: string, authHeader: string, payload: Record<string, unknown>): Promise<{ ok: boolean; body: any; error: string | null }> {
+  try {
+    const resp = await fetch(`${supabaseUrl}/functions/v1/meta-api`, {
+      method: 'POST', headers: { Authorization: authHeader, 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    const body = await resp.json().catch(() => ({}));
+    const error = body?.error ? String(body.error) : (!resp.ok ? `HTTP ${resp.status}` : null);
+    return { ok: !error, body, error };
+  } catch (e) {
+    return { ok: false, body: {}, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+// deno-lint-ignore no-explicit-any
+async function applyMetaAdSchedules(supabase: any, supabaseUrl: string, authHeader: string, journey: any, onlyNodeId?: string) {
+  const results: Array<{ node_id: string; status: 'applied' | 'skipped' | 'failed'; message?: string }> = [];
+  const nodes = (journey.canvas_data?.nodes || []).filter((n: any) => n.type === 'meta_ad' && n.data?.ad_set_row_id && (!onlyNodeId || n.id === onlyNodeId));
+  for (const node of nodes) {
+    if (adScheduleModeOf(node.data) === 'none') { results.push({ node_id: node.id, status: 'skipped' }); continue; }
+    const plan = resolveAdSchedule(node.data, { start_date: journey.start_date, end_date: journey.end_date });
+    const saveLink = (fields: Record<string, unknown>) =>
+      supabase.from('journey_meta_ad_links').update({ ...fields, updated_at: new Date().toISOString() }).eq('journey_id', journey.id).eq('node_id', node.id);
+    if (plan.errors.length > 0) {
+      await saveLink({ last_error: plan.errors.join(' ') });
+      results.push({ node_id: node.id, status: 'failed', message: plan.errors.join(' ') });
+      continue;
+    }
+    if (!plan.apply || (!plan.start && !plan.end)) { results.push({ node_id: node.id, status: 'skipped', message: plan.warnings[0] }); continue; }
+    const r = await callMetaApi(supabaseUrl, authHeader, { action: 'ad_sets_set_schedule', ad_set_id: node.data.ad_set_row_id, start_at: plan.start ?? undefined, end_at: plan.end ?? undefined });
+    if (!r.ok) {
+      await saveLink({ last_error: r.error });
+      results.push({ node_id: node.id, status: 'failed', message: r.error ?? 'Meta rejected the schedule' });
+    } else {
+      await saveLink({ applied_start_at: r.body?.start_at ?? null, applied_end_at: r.body?.end_at ?? null, applied_at: new Date().toISOString(), last_error: r.body?.note ?? null });
+      results.push({ node_id: node.id, status: 'applied', message: r.body?.note ?? undefined });
+    }
+  }
+  return results;
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
   // Visible on every response (even a 401) so a deploy can be verified without a login.
-  'X-Journeys-Build': 'campaign-fields-2026-11-12',
+  'X-Journeys-Build': 'meta-ad-schedule-2026-11-13',
 };
 
 // Journey CRUD + control, targeting this project's own `retailers` table as
@@ -505,6 +550,27 @@ serve(async (req) => {
           }
         }
 
+        // Meta Ad nodes: apply each node's schedule to its Ad Set, and resume any Ad Set that
+        // pausing this journey paused (never one that was paused for another reason).
+        let metaSchedule: Awaited<ReturnType<typeof applyMetaAdSchedules>> = [];
+        let metaResumed = 0;
+        if (isGraph) {
+          metaSchedule = await applyMetaAdSchedules(supabase, supabaseUrl, authHeader, journey);
+          if (!isFutureStart) {
+            const { data: pausedLinks } = await supabase.from('journey_meta_ad_links')
+              .select('id, meta_ad_set_row_id').eq('journey_id', journey_id).eq('paused_by_journey', true);
+            for (const link of pausedLinks || []) {
+              const r = await callMetaApi(supabaseUrl, authHeader, { action: 'ad_sets_resume', ad_set_id: link.meta_ad_set_row_id });
+              if (r.ok) {
+                await supabase.from('journey_meta_ad_links').update({ paused_by_journey: false, last_error: null }).eq('id', link.id);
+                metaResumed++;
+              } else {
+                await supabase.from('journey_meta_ad_links').update({ last_error: `Could not resume the ad set: ${r.error}` }).eq('id', link.id);
+              }
+            }
+          }
+        }
+
         await supabase.from('journeys').update({ status: isFutureStart ? 'scheduled' : 'active' }).eq('id', journey_id);
 
         // Real-time kick: nudge process-journeys immediately instead of waiting
@@ -522,6 +588,7 @@ serve(async (req) => {
         return new Response(JSON.stringify({
           success: true, newly_enrolled: toEnroll.length,
           scheduled: isFutureStart, start_date: isFutureStart ? journey.start_date : null,
+          meta_ad_schedule: metaSchedule, meta_ad_sets_resumed: metaResumed,
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -567,7 +634,49 @@ serve(async (req) => {
             status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
-        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        // Pausing a journey also pauses the Meta Ad Sets its Meta Ad nodes feed (only ones currently active),
+        // remembering that we did so, so resuming the journey resumes exactly those.
+        let metaPaused = 0;
+        const metaPauseErrors: string[] = [];
+        if (action === 'pause') {
+          const { data: links } = await supabase.from('journey_meta_ad_links').select('id, meta_ad_set_row_id').eq('journey_id', journey_id);
+          const setIds = (links || []).map((l: { meta_ad_set_row_id: string }) => l.meta_ad_set_row_id);
+          const { data: liveSets } = setIds.length > 0
+            ? await supabase.from('meta_ad_sets').select('id, status').in('id', setIds)
+            : { data: [] as Array<{ id: string; status: string }> };
+          const activeSets = new Set((liveSets || []).filter((s: { status: string }) => s.status === 'active').map((s: { id: string }) => s.id));
+          for (const link of links || []) {
+            if (!activeSets.has(link.meta_ad_set_row_id)) continue;
+            const r = await callMetaApi(supabaseUrl, authHeader, { action: 'ad_sets_pause', ad_set_id: link.meta_ad_set_row_id });
+            if (r.ok) {
+              await supabase.from('journey_meta_ad_links').update({ paused_by_journey: true, last_error: null }).eq('id', link.id);
+              metaPaused++;
+            } else {
+              metaPauseErrors.push(r.error ?? 'Could not pause the Meta ad set');
+              await supabase.from('journey_meta_ad_links').update({ last_error: `Could not pause the ad set: ${r.error}` }).eq('id', link.id);
+            }
+          }
+        }
+        return new Response(JSON.stringify({ success: true, meta_paused: metaPaused, meta_pause_errors: metaPauseErrors }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      // Re-apply one Meta Ad node's schedule to its Ad Set (button on the node panel).
+      if (action === 'apply-meta-ad-schedule') {
+        const { journey_id, node_id } = body;
+        const { data: j } = await supabase.from('journeys').select('*').eq('id', journey_id).is('deleted_at', null).maybeSingle();
+        if (!j || !node_id) {
+          return new Response(JSON.stringify({ error: 'journey_id and node_id are required' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const { data: link } = await supabase.from('journey_meta_ad_links').select('id').eq('journey_id', journey_id).eq('node_id', node_id).maybeSingle();
+        if (!link) {
+          return new Response(JSON.stringify({ error: 'Publish the journey first so this node is linked to its ad set.' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const results = await applyMetaAdSchedules(supabase, supabaseUrl, authHeader, j, node_id);
+        return new Response(JSON.stringify({ success: true, results }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
       if (action === 'schedule') {

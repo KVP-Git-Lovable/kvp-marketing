@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { journeyNodeTypes } from "@/components/journey/JourneyNodes";
-import { NodePropertyPanel } from "@/components/journey/NodePropertyPanel";
+import { NodePropertyPanel, type MetaAdLinkInfo } from "@/components/journey/NodePropertyPanel";
 import { JourneySettingsPanel } from "@/components/journey/JourneySettingsPanel";
 import { JourneyAnalyticsTab } from "@/components/journey/JourneyAnalyticsTab";
 import { EditJourneyDetailsDialog } from "@/components/journey/EditJourneyDetailsDialog";
@@ -26,7 +26,7 @@ import { useMessageResponseLiveCounts } from "@/hooks/useMessageResponseLiveCoun
 import { MARKETING_SEGMENT_TYPES } from "@/lib/marketingSegments";
 
 interface WhatsAppTemplate { id: string; name: string; body?: string }
-interface MetaAdSetOption { id: string; name: string; campaign_name?: string; custom_audience_name?: string; custom_audience_row_count?: number }
+interface MetaAdSetOption { id: string; name: string; campaign_name?: string; custom_audience_name?: string; custom_audience_row_count?: number; start_at?: string | null; end_at?: string | null }
 interface JourneyDetail {
   id: string; name: string; status: string;
   segment_type: string;
@@ -118,6 +118,7 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
         .map((a: any) => ({
           id: a.id, name: a.name, campaign_name: a.meta_campaigns?.name,
           custom_audience_name: a.meta_custom_audiences?.name, custom_audience_row_count: a.meta_custom_audiences?.row_count,
+          start_at: a.start_at, end_at: a.end_at,
         })) as MetaAdSetOption[];
     },
   });
@@ -178,6 +179,32 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
   });
   const metaAdLinkedNodeIds = new Set(Object.keys(metaAdPushedCounts || {}));
 
+  // Schedule/pause status per Meta Ad node, and which ad sets other journeys already use.
+  const { data: metaAdLinks } = useQuery({
+    queryKey: ["journey-meta-ad-link-info", journeyId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("journey_meta_ad_links")
+        .select("node_id, applied_at, applied_start_at, applied_end_at, last_error, paused_by_journey").eq("journey_id", journeyId);
+      if (error) throw error;
+      return Object.fromEntries((data || []).map((r) => [r.node_id, r])) as Record<string, MetaAdLinkInfo>;
+    },
+    enabled: !!journeyId,
+  });
+  const { data: adSetSharing } = useQuery({
+    queryKey: ["journey-meta-ad-sharing", journeyId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("journey_meta_ad_links")
+        .select("meta_ad_set_row_id, journeys(name)").neq("journey_id", journeyId);
+      if (error) throw error;
+      const out: Record<string, string[]> = {};
+      for (const r of (data || []) as unknown as Array<{ meta_ad_set_row_id: string; journeys: { name: string } | null }>) {
+        if (r.journeys?.name) (out[r.meta_ad_set_row_id] ||= []).push(r.journeys.name);
+      }
+      return out;
+    },
+    enabled: !!journeyId,
+  });
+
   const onConnect = useCallback((connection: Connection) => setEdges((eds) => addEdge(connection, eds)), [setEdges]);
 
   const addNode = (type: "message" | "delay" | "decision" | "message_response" | "meta_ad" | "exit") => {
@@ -186,7 +213,7 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
       delay: { duration: 1, unit: "hours" },
       decision: { condition: "sent_ok" },
       message_response: { condition: "read", wait_value: 1, wait_unit: "hours" },
-      meta_ad: { ad_set_row_id: "", audience_replace_confirmed: false },
+      meta_ad: { ad_set_row_id: "", audience_replace_confirmed: false, schedule_mode: "follow_journey" },
       exit: {},
     };
     const maxY = nodes.reduce((m, n) => Math.max(m, n.position.y), 0);
@@ -237,10 +264,30 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
 
   const pauseMutation = useMutation({
     mutationFn: () => invoke({ action: "pause", journey_id: journeyId }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["journeys"] });
       queryClient.invalidateQueries({ queryKey: ["journey-detail", journeyId] });
-      toast.success("Journey paused");
+      queryClient.invalidateQueries({ queryKey: ["journey-meta-ad-link-info", journeyId] });
+      toast.success(data?.meta_paused > 0 ? `Journey paused — ${data.meta_paused} Meta ad set(s) paused too` : "Journey paused");
+      if (data?.meta_pause_errors?.length) toast.error(`Could not pause a Meta ad set: ${data.meta_pause_errors[0]}`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // Saves the canvas first so the node's dates are what Meta receives, then applies them.
+  const applyMetaScheduleMutation = useMutation({
+    mutationFn: async (nodeId: string) => {
+      await invoke({ action: "update", journey_id: journeyId, nodes, edges });
+      return invoke({ action: "apply-meta-ad-schedule", journey_id: journeyId, node_id: nodeId });
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["journey-detail", journeyId] });
+      queryClient.invalidateQueries({ queryKey: ["journey-meta-ad-link-info", journeyId] });
+      queryClient.invalidateQueries({ queryKey: ["meta-ad-sets-for-journeys"] });
+      const r = data?.results?.[0];
+      if (r?.status === "failed") toast.error(r.message || "Meta did not accept the schedule");
+      else if (r?.status === "applied") toast.success(r.message || "Schedule applied on Meta");
+      else toast.info(r?.message || "Nothing to apply");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -249,8 +296,16 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
     if (n.type === "message_response" && liveCounts?.[n.id]) {
       return { ...n, data: { ...n.data, live: liveCounts[n.id] } };
     }
-    if (n.type === "meta_ad" && typeof metaAdPushedCounts?.[n.id] === "number") {
-      return { ...n, data: { ...n.data, pushed_count: metaAdPushedCounts[n.id] } };
+    if (n.type === "meta_ad") {
+      const link = metaAdLinks?.[n.id];
+      return {
+        ...n,
+        data: {
+          ...n.data,
+          ...(typeof metaAdPushedCounts?.[n.id] === "number" ? { pushed_count: metaAdPushedCounts[n.id] } : {}),
+          link_applied_at: link?.applied_at ?? null, link_error: link?.last_error ?? null, link_paused: !!link?.paused_by_journey,
+        },
+      };
     }
     if (n.type === "entry" && isMarketingJourney) {
       return {
@@ -374,6 +429,11 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
                 templates={templates}
                 adSets={adSets}
                 metaAdLinkedNodeIds={metaAdLinkedNodeIds}
+                journeyWindow={{ start_date: journey?.start_date, end_date: journey?.end_date }}
+                metaAdLinks={metaAdLinks}
+                adSetSharing={adSetSharing}
+                onApplyMetaSchedule={(id) => applyMetaScheduleMutation.mutate(id)}
+                applyingMetaSchedule={applyMetaScheduleMutation.isPending}
                 nodes={nodes}
                 edges={edges}
                 liveCounts={liveCounts}

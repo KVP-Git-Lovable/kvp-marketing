@@ -137,7 +137,12 @@ export function MessageResponseNode({ id, data, selected }: NodeProps) {
 }
 
 export function MetaAdNode({ data, selected }: NodeProps) {
-  const d = data as { ad_set_row_id?: string; ad_set_name?: string; campaign_name?: string; pushed_count?: number; audience_replace_confirmed?: boolean };
+  const d = data as {
+    ad_set_row_id?: string; ad_set_name?: string; campaign_name?: string; pushed_count?: number; audience_replace_confirmed?: boolean;
+    schedule_mode?: string; ad_start_at?: string | null; ad_end_at?: string | null;
+    link_applied_at?: string | null; link_error?: string | null; link_paused?: boolean;
+  };
+  const shortDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "short" }) : "…");
   const needsConfirmation = !!d.ad_set_row_id && typeof d.pushed_count !== "number" && !d.audience_replace_confirmed;
   return (
     <div className={`${base} border-indigo-400 ${selected ? "ring-2 ring-indigo-400" : ""}`}>
@@ -150,6 +155,11 @@ export function MetaAdNode({ data, selected }: NodeProps) {
       {typeof d.pushed_count === "number" && (
         <p className="font-semibold mt-0.5">{d.pushed_count.toLocaleString()} pushed to audience</p>
       )}
+      {d.schedule_mode === "follow_journey" && <p className="text-[10px] text-muted-foreground">Dates: follows journey</p>}
+      {d.schedule_mode === "custom" && <p className="text-[10px] text-muted-foreground">Dates: {shortDate(d.ad_start_at)} → {shortDate(d.ad_end_at)}</p>}
+      {d.link_error ? <p className="text-destructive text-[10px] truncate" title={d.link_error}>⚠ Meta: {d.link_error}</p>
+        : d.link_applied_at ? <p className="text-green-700 text-[10px]">✓ Schedule applied</p> : null}
+      {d.link_paused && <p className="text-amber-700 text-[10px]">Ad set paused with journey</p>}
       {needsConfirmation && <p className="text-destructive font-medium mt-0.5">⚠ Needs confirmation before activating</p>}
       <Handle type="source" position={Position.Bottom} />
     </div>

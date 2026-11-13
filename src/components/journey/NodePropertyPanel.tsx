@@ -21,6 +21,9 @@ import {
 import { Trash2, X } from "lucide-react";
 import { effectiveResponseTarget, isTemplateStep, templateLabel } from "@/lib/journeyResponseTargets";
 import type { LiveCounts } from "@/hooks/useMessageResponseLiveCounts";
+import { AD_SCHEDULE_MODES, adScheduleModeOf, resolveAdSchedule } from "@/lib/metaAdSchedule";
+import { fromDateTimeLocal, toDateTimeLocal } from "@/lib/journeyCampaign";
+import { format } from "date-fns";
 
 interface WhatsAppTemplate {
   id: string;
@@ -34,6 +37,16 @@ interface MetaAdSetOption {
   campaign_name?: string;
   custom_audience_name?: string;
   custom_audience_row_count?: number;
+  start_at?: string | null;
+  end_at?: string | null;
+}
+
+export interface MetaAdLinkInfo {
+  applied_at?: string | null;
+  applied_start_at?: string | null;
+  applied_end_at?: string | null;
+  last_error?: string | null;
+  paused_by_journey?: boolean;
 }
 
 interface Props {
@@ -41,6 +54,13 @@ interface Props {
   templates: WhatsAppTemplate[];
   adSets: MetaAdSetOption[];
   metaAdLinkedNodeIds?: Set<string>;
+  /** Window of the journey this node belongs to (used by "Follow journey dates"). */
+  journeyWindow?: { start_date?: string | null; end_date?: string | null };
+  metaAdLinks?: Record<string, MetaAdLinkInfo>;
+  /** Ad set row id -> names of OTHER journeys that already use it. */
+  adSetSharing?: Record<string, string[]>;
+  onApplyMetaSchedule?: (nodeId: string) => void;
+  applyingMetaSchedule?: boolean;
   nodes: Node[];
   edges: Edge[];
   liveCounts?: Record<string, LiveCounts>;
@@ -68,7 +88,7 @@ const WAIT_PRESETS: { label: string; value: number; unit: "minutes" | "hours" }[
   { label: "24 hr", value: 24, unit: "hours" },
 ];
 
-export function NodePropertyPanel({ node, templates, adSets, metaAdLinkedNodeIds, nodes, edges, liveCounts, onChange, onDelete, onClose }: Props) {
+export function NodePropertyPanel({ node, templates, adSets, metaAdLinkedNodeIds, journeyWindow, metaAdLinks, adSetSharing, onApplyMetaSchedule, applyingMetaSchedule, nodes, edges, liveCounts, onChange, onDelete, onClose }: Props) {
   const data = (node.data || {}) as Record<string, unknown>;
   const canDelete = node.type !== "entry" && node.type !== "exit";
   const selectedTemplate = templates.find((t) => t.id === (data.template_id as string));
@@ -195,6 +215,64 @@ export function NodePropertyPanel({ node, templates, adSets, metaAdLinkedNodeIds
               <p className="text-[11px] text-muted-foreground">
                 Each contact reaching this step is pushed into a Meta Custom Audience linked to this ad set, hashed and uploaded automatically — the audience grows live as the journey runs.
               </p>
+              {selectedAdSet && (() => {
+                const mode = adScheduleModeOf(data);
+                const plan = resolveAdSchedule(data, journeyWindow || {});
+                const link = metaAdLinks?.[node.id];
+                const others = adSetSharing?.[selectedAdSet.id] || [];
+                const fmt = (iso?: string | null) => (iso ? format(new Date(iso), "dd MMM yyyy, p") : "—");
+                return (
+                  <div className="space-y-2 rounded-md border p-2.5">
+                    <Label className="text-xs font-medium">Ad schedule</Label>
+                    <Select value={mode} onValueChange={(v) => onChange(node.id, { ...data, schedule_mode: v })}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {AD_SCHEDULE_MODES.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">{AD_SCHEDULE_MODES.find((m) => m.value === mode)?.hint}</p>
+                    {mode === "custom" && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-[11px] text-muted-foreground">Start</Label>
+                          <Input type="datetime-local" className="h-9" value={toDateTimeLocal(data.ad_start_at as string | undefined)}
+                            onChange={(e) => onChange(node.id, { ...data, ad_start_at: fromDateTimeLocal(e.target.value) })} />
+                        </div>
+                        <div>
+                          <Label className="text-[11px] text-muted-foreground">End</Label>
+                          <Input type="datetime-local" className="h-9" value={toDateTimeLocal(data.ad_end_at as string | undefined)}
+                            onChange={(e) => onChange(node.id, { ...data, ad_end_at: fromDateTimeLocal(e.target.value) })} />
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-[11px] text-muted-foreground">On Meta now: {fmt(selectedAdSet.start_at)} → {selectedAdSet.end_at ? fmt(selectedAdSet.end_at) : "no end"}</p>
+                    {mode !== "none" && (plan.start || plan.end) && plan.errors.length === 0 && (
+                      <p className="text-[11px]">Will set: {plan.start ? fmt(plan.start) : "start unchanged"} → {plan.end ? fmt(plan.end) : "end unchanged"}</p>
+                    )}
+                    {plan.errors.map((m) => <p key={m} className="text-[11px] text-destructive">{m}</p>)}
+                    {plan.warnings.map((m) => <p key={m} className="text-[11px] text-amber-700">{m}</p>)}
+                    {others.length > 0 && (
+                      <p className="text-[11px] rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-amber-800">
+                        This ad set is also used by: {others.join(", ")}. Changing its dates or pausing it affects those journeys too.
+                      </p>
+                    )}
+                    <p className="text-[11px] text-muted-foreground">Pausing this journey also pauses this ad set on Meta; resuming the journey resumes it (only if the journey paused it).</p>
+                    {link?.applied_at && !link.last_error && (
+                      <p className="text-[11px] text-green-700">Applied {fmt(link.applied_at)}: {link.applied_start_at ? fmt(link.applied_start_at) : "start unchanged"} → {link.applied_end_at ? fmt(link.applied_end_at) : "end unchanged"}</p>
+                    )}
+                    {link?.last_error && <p className="text-[11px] text-destructive">Meta: {link.last_error}</p>}
+                    {isLinked && mode !== "none" && onApplyMetaSchedule && (
+                      <Button size="sm" variant="outline" className="w-full" disabled={applyingMetaSchedule || plan.errors.length > 0}
+                        onClick={() => onApplyMetaSchedule(node.id)}>
+                        {applyingMetaSchedule ? "Applying..." : "Save and apply to Meta now"}
+                      </Button>
+                    )}
+                    {!isLinked && mode !== "none" && (
+                      <p className="text-[11px] text-muted-foreground">The schedule is applied to Meta when you publish the journey.</p>
+                    )}
+                  </div>
+                );
+              })()}
               {selectedAdSet && (
                 isLinked ? (
                   <p className="text-[11px] rounded-md border bg-muted/40 px-2.5 py-2 text-muted-foreground">

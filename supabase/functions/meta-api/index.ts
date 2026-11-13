@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Expose-Headers': 'x-meta-api-build',
-  'X-Meta-Api-Build': 'ads-media-2026-11-06',
+  'X-Meta-Api-Build': 'adset-schedule-2026-11-13',
 };
 
 const GRAPH = 'https://graph.facebook.com/v19.0';
@@ -1063,6 +1063,45 @@ serve(async (req) => {
       }).eq('id', ad_set_id).select().single();
       if (error) return json({ error: error.message }, 500);
       return json(updated);
+    }
+
+    // Lightweight schedule change (used by Journey Meta Ad nodes): sends ONLY start_time / end_time,
+    // unlike ad_sets_update which rewrites targeting, bids and budget.
+    if (action === 'ad_sets_set_schedule') {
+      const { ad_set_id, start_at, end_at } = body;
+      const { data: adSet } = await supabase.from('meta_ad_sets').select('id, meta_ad_set_id').eq('id', ad_set_id).single();
+      if (!adSet) return json({ error: 'Ad set not found' }, 404);
+      const startMs = start_at ? Date.parse(start_at) : NaN;
+      const endMs = end_at ? Date.parse(end_at) : NaN;
+      if (start_at && Number.isNaN(startMs)) return json({ error: 'Invalid start_at' }, 400);
+      if (end_at && Number.isNaN(endMs)) return json({ error: 'Invalid end_at' }, 400);
+      if (!start_at && !end_at) return json({ error: 'start_at or end_at is required' }, 400);
+      if (end_at && endMs <= Date.now()) return json({ error: 'End must be in the future.' }, 400);
+      if (start_at && end_at && endMs <= startMs) return json({ error: 'End must be after the start.' }, 400);
+
+      const endIso = end_at ? new Date(endMs).toISOString() : undefined;
+      const startIso = start_at ? new Date(startMs).toISOString() : undefined;
+      let startApplied = false;
+      let startNote: string | null = null;
+      try {
+        await graph(`/${adSet.meta_ad_set_id}`, accessToken, { method: 'POST', body: { ...(endIso ? { end_time: endIso } : {}), ...(startIso ? { start_time: startIso } : {}) } });
+        startApplied = !!startIso;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        // Meta refuses to move the start of an ad set that already started delivering; keep going with the end alone.
+        if (startIso && endIso && /start time|1487057/i.test(msg)) {
+          await graph(`/${adSet.meta_ad_set_id}`, accessToken, { method: 'POST', body: { end_time: endIso } });
+          startNote = 'Meta did not allow changing the start (the ad set has already started). The end date was applied.';
+        } else {
+          throw e;
+        }
+      }
+      const update: Record<string, unknown> = { last_synced_at: new Date().toISOString() };
+      if (startApplied) update.start_at = startIso;
+      if (endIso) update.end_at = endIso;
+      const { error } = await supabase.from('meta_ad_sets').update(update).eq('id', ad_set_id);
+      if (error) return json({ error: error.message }, 500);
+      return json({ success: true, start_applied: startApplied, end_applied: !!endIso, start_at: startApplied ? startIso : null, end_at: endIso ?? null, note: startNote });
     }
 
     if (action === 'ad_sets_publish' || action === 'ad_sets_pause' || action === 'ad_sets_resume') {
