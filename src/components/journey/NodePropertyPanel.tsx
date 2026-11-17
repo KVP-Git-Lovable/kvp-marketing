@@ -22,6 +22,7 @@ import { Trash2, X } from "lucide-react";
 import { effectiveResponseTarget, isTemplateStep, templateLabel } from "@/lib/journeyResponseTargets";
 import type { LiveCounts } from "@/hooks/useMessageResponseLiveCounts";
 import { AD_SCHEDULE_MODES, adScheduleModeOf, resolveAdSchedule } from "@/lib/metaAdSchedule";
+import { AD_BUDGET_MODES, adBudgetModeOf, resolveAdBudget, totalSharePct } from "@/lib/metaAdBudget";
 import { fromDateTimeLocal, toDateTimeLocal } from "@/lib/journeyCampaign";
 import { format } from "date-fns";
 
@@ -47,6 +48,9 @@ export interface MetaAdLinkInfo {
   applied_end_at?: string | null;
   last_error?: string | null;
   paused_by_journey?: boolean;
+  applied_budget?: number | null;
+  applied_budget_type?: string | null;
+  spend_amount?: number | null;
 }
 
 interface Props {
@@ -55,7 +59,7 @@ interface Props {
   adSets: MetaAdSetOption[];
   metaAdLinkedNodeIds?: Set<string>;
   /** Window of the journey this node belongs to (used by "Follow journey dates"). */
-  journeyWindow?: { start_date?: string | null; end_date?: string | null };
+  journeyWindow?: { start_date?: string | null; end_date?: string | null; budget_cap?: number | null };
   metaAdLinks?: Record<string, MetaAdLinkInfo>;
   /** Ad set row id -> names of OTHER journeys that already use it. */
   adSetSharing?: Record<string, string[]>;
@@ -219,6 +223,10 @@ export function NodePropertyPanel({ node, templates, adSets, metaAdLinkedNodeIds
                 const mode = adScheduleModeOf(data);
                 const plan = resolveAdSchedule(data, journeyWindow || {});
                 const link = metaAdLinks?.[node.id];
+                const budgetMode = adBudgetModeOf(data);
+                const budgetPlan = resolveAdBudget(data, journeyWindow?.budget_cap, plan.end ?? selectedAdSet.end_at ?? null);
+                const sharesTotal = totalSharePct(nodes as unknown as Array<{ type?: string; data?: Record<string, never> }>);
+                const rupees = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
                 const others = adSetSharing?.[selectedAdSet.id] || [];
                 const fmt = (iso?: string | null) => (iso ? format(new Date(iso), "dd MMM yyyy, p") : "—");
                 return (
@@ -257,18 +265,70 @@ export function NodePropertyPanel({ node, templates, adSets, metaAdLinkedNodeIds
                       </p>
                     )}
                     <p className="text-[11px] text-muted-foreground">Pausing this journey also pauses this ad set on Meta; resuming the journey resumes it (only if the journey paused it).</p>
+                    <div className="space-y-2 border-t pt-2">
+                      <Label className="text-xs font-medium">Ad budget</Label>
+                      <Select value={budgetMode} onValueChange={(v) => onChange(node.id, { ...data, budget_mode: v, ...(v === "share" && data.budget_share_pct === undefined ? { budget_share_pct: 100 } : {}) })}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {AD_BUDGET_MODES.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground">{AD_BUDGET_MODES.find((m) => m.value === budgetMode)?.hint}</p>
+                      {budgetMode === "share" && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-[11px] text-muted-foreground">Share of journey budget (%)</Label>
+                            <Input type="number" min={1} max={100} step="any" className="h-9" value={(data.budget_share_pct as number | string | undefined) ?? ""}
+                              onChange={(e) => onChange(node.id, { ...data, budget_share_pct: e.target.value === "" ? "" : Number(e.target.value) })} />
+                          </div>
+                          <div>
+                            <Label className="text-[11px] text-muted-foreground">Journey Budget Cap</Label>
+                            <p className="h-9 flex items-center text-sm">{journeyWindow?.budget_cap ? rupees(Number(journeyWindow.budget_cap)) : "Not set"}</p>
+                          </div>
+                        </div>
+                      )}
+                      {budgetMode === "custom" && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-[11px] text-muted-foreground">Amount (₹)</Label>
+                            <Input type="number" min={0} step="any" className="h-9" value={(data.budget_custom_amount as number | string | undefined) ?? ""}
+                              onChange={(e) => onChange(node.id, { ...data, budget_custom_amount: e.target.value === "" ? "" : Number(e.target.value) })} />
+                          </div>
+                          <div>
+                            <Label className="text-[11px] text-muted-foreground">Type</Label>
+                            <Select value={(data.budget_custom_type as string) === "lifetime" ? "lifetime" : "daily"} onValueChange={(v) => onChange(node.id, { ...data, budget_custom_type: v })}>
+                              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="daily">Daily</SelectItem>
+                                <SelectItem value="lifetime">Lifetime</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      )}
+                      {budgetPlan.apply && budgetPlan.errors.length === 0 && budgetPlan.amount !== null && (
+                        <p className="text-[11px]">Will set: {rupees(budgetPlan.amount)} {budgetPlan.type}{budgetPlan.type === "lifetime" && (plan.end ?? selectedAdSet.end_at) ? ` until ${fmt(plan.end ?? selectedAdSet.end_at)}` : " per day"}</p>
+                      )}
+                      {budgetPlan.errors.map((m) => <p key={m} className="text-[11px] text-destructive">{m}</p>)}
+                      {budgetPlan.warnings.map((m) => <p key={m} className="text-[11px] text-amber-700">{m}</p>)}
+                      {sharesTotal > 100 && <p className="text-[11px] text-amber-700">Meta Ad nodes in this journey add up to {sharesTotal}% of the budget.</p>}
+                      <p className="text-[11px] text-muted-foreground">Doesn't apply when the campaign holds the budget (campaign budget optimisation) or the ad account isn't billed in INR; the reason is shown here after applying.</p>
+                      {typeof link?.applied_budget === "number" && (
+                        <p className="text-[11px] text-green-700">Budget applied: {rupees(link.applied_budget)} {link.applied_budget_type}{typeof link.spend_amount === "number" ? ` · spent ${rupees(link.spend_amount)}` : ""}</p>
+                      )}
+                    </div>
                     {link?.applied_at && !link.last_error && (
                       <p className="text-[11px] text-green-700">Applied {fmt(link.applied_at)}: {link.applied_start_at ? fmt(link.applied_start_at) : "start unchanged"} → {link.applied_end_at ? fmt(link.applied_end_at) : "end unchanged"}</p>
                     )}
                     {link?.last_error && <p className="text-[11px] text-destructive">Meta: {link.last_error}</p>}
-                    {isLinked && mode !== "none" && onApplyMetaSchedule && (
-                      <Button size="sm" variant="outline" className="w-full" disabled={applyingMetaSchedule || plan.errors.length > 0}
+                    {isLinked && (mode !== "none" || budgetMode !== "none") && onApplyMetaSchedule && (
+                      <Button size="sm" variant="outline" className="w-full" disabled={applyingMetaSchedule || plan.errors.length > 0 || budgetPlan.errors.length > 0}
                         onClick={() => onApplyMetaSchedule(node.id)}>
                         {applyingMetaSchedule ? "Applying..." : "Save and apply to Meta now"}
                       </Button>
                     )}
-                    {!isLinked && mode !== "none" && (
-                      <p className="text-[11px] text-muted-foreground">The schedule is applied to Meta when you publish the journey.</p>
+                    {!isLinked && (mode !== "none" || budgetMode !== "none") && (
+                      <p className="text-[11px] text-muted-foreground">The schedule and budget are applied to Meta when you publish the journey.</p>
                     )}
                   </div>
                 );

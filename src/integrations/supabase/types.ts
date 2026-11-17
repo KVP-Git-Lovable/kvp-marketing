@@ -12459,6 +12459,8 @@ export type Database = {
       journey_meta_ad_links: {
         Row: {
           applied_at: string | null
+          applied_budget: number | null
+          applied_budget_type: string | null
           applied_end_at: string | null
           applied_start_at: string | null
           created_at: string
@@ -12470,10 +12472,14 @@ export type Database = {
           node_id: string
           paused_by_journey: boolean
           pushed_count: number
+          spend_amount: number | null
+          spend_synced_at: string | null
           updated_at: string
         }
         Insert: {
           applied_at?: string | null
+          applied_budget?: number | null
+          applied_budget_type?: string | null
           applied_end_at?: string | null
           applied_start_at?: string | null
           created_at?: string
@@ -12485,10 +12491,14 @@ export type Database = {
           node_id: string
           paused_by_journey?: boolean
           pushed_count?: number
+          spend_amount?: number | null
+          spend_synced_at?: string | null
           updated_at?: string
         }
         Update: {
           applied_at?: string | null
+          applied_budget?: number | null
+          applied_budget_type?: string | null
           applied_end_at?: string | null
           applied_start_at?: string | null
           created_at?: string
@@ -12500,6 +12510,8 @@ export type Database = {
           node_id?: string
           paused_by_journey?: boolean
           pushed_count?: number
+          spend_amount?: number | null
+          spend_synced_at?: string | null
           updated_at?: string
         }
         Relationships: [

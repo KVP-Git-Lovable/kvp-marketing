@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   ReactFlow, Background, Controls, MiniMap, Panel, addEdge,
   useNodesState, useEdgesState, type Node, type Edge, type Connection,
@@ -12,13 +13,15 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft, Users, MessageCircleMore, Clock, GitBranch, MessageCircle, Tag, LogOut,
-  Save, Play, Pause, BarChart3, Pencil, Megaphone, Undo2,
+  Save, Play, Pause, BarChart3, Pencil, Megaphone, Undo2, Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { journeyNodeTypes } from "@/components/journey/JourneyNodes";
 import { NodePropertyPanel, type MetaAdLinkInfo } from "@/components/journey/NodePropertyPanel";
 import { JourneySettingsPanel } from "@/components/journey/JourneySettingsPanel";
 import { JourneyAnalyticsTab } from "@/components/journey/JourneyAnalyticsTab";
+import { JourneyHighlights } from "@/components/journey/JourneyHighlights";
+import { JourneyMembers } from "@/components/journey/JourneyMembers";
 import { EditJourneyDetailsDialog } from "@/components/journey/EditJourneyDetailsDialog";
 import { JourneyAudiencePreviewDialog } from "@/components/journey/JourneyAudiencePreviewDialog";
 import { useMessageResponseLiveCounts } from "@/hooks/useMessageResponseLiveCounts";
@@ -45,6 +48,8 @@ interface JourneyDetail {
   sent_message_count: number;
   enrolled_count: number;
   completed_count: number;
+  owner_id?: string | null;
+  created_by?: string | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -184,7 +189,7 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
     queryKey: ["journey-meta-ad-link-info", journeyId],
     queryFn: async () => {
       const { data, error } = await supabase.from("journey_meta_ad_links")
-        .select("node_id, applied_at, applied_start_at, applied_end_at, last_error, paused_by_journey").eq("journey_id", journeyId);
+        .select("node_id, applied_at, applied_start_at, applied_end_at, last_error, paused_by_journey, applied_budget, applied_budget_type, spend_amount").eq("journey_id", journeyId);
       if (error) throw error;
       return Object.fromEntries((data || []).map((r) => [r.node_id, r])) as Record<string, MetaAdLinkInfo>;
     },
@@ -203,6 +208,30 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
       return out;
     },
     enabled: !!journeyId,
+  });
+
+  // Meta spend (cached 5 min server-side) for the budget bar and node cards.
+  const { data: metaSpend } = useQuery({
+    queryKey: ["journey-meta-spend", journeyId],
+    enabled: !!journeyId && metaAdLinkedNodeIds.size > 0,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const r = await invoke({ action: "refresh-meta-spend", journey_id: journeyId });
+      queryClient.invalidateQueries({ queryKey: ["journey-meta-ad-link-info", journeyId] });
+      return r as { spend_total: number };
+    },
+  });
+
+  const [, setSearchParams] = useSearchParams();
+  const cloneMutation = useMutation({
+    mutationFn: () => invoke({ action: "clone", journey_id: journeyId }),
+    onSuccess: (copy) => {
+      queryClient.invalidateQueries({ queryKey: ["journeys"] });
+      toast.success("Copy created as a draft");
+      onBack();
+      setSearchParams((prev) => { const next = new URLSearchParams(prev); next.set("journey", copy.id); return next; }, { replace: true });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const onConnect = useCallback((connection: Connection) => setEdges((eds) => addEdge(connection, eds)), [setEdges]);
@@ -304,6 +333,8 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
           ...n.data,
           ...(typeof metaAdPushedCounts?.[n.id] === "number" ? { pushed_count: metaAdPushedCounts[n.id] } : {}),
           link_applied_at: link?.applied_at ?? null, link_error: link?.last_error ?? null, link_paused: !!link?.paused_by_journey,
+          link_budget: link?.applied_budget ?? null, link_budget_type: link?.applied_budget_type ?? null, link_spend: link?.spend_amount ?? null,
+          journey_budget_cap: journey?.budget_cap ?? null,
         },
       };
     }
@@ -348,6 +379,9 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
           <Button variant="outline" size="sm" onClick={() => setEditDetailsOpen(true)}>
             <Pencil className="h-4 w-4 mr-1.5" /> Edit Journey
           </Button>
+          <Button variant="outline" size="sm" onClick={() => cloneMutation.mutate()} disabled={cloneMutation.isPending}>
+            <Copy className="h-4 w-4 mr-1.5" /> {cloneMutation.isPending ? "Cloning..." : "Clone"}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
             <Save className="h-4 w-4 mr-1.5" /> {saveMutation.isPending ? "Saving..." : "Save"}
           </Button>
@@ -369,11 +403,14 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
         </div>
       </div>
 
+      {journey && <JourneyHighlights journeyId={journeyId} journey={journey} metaSpend={metaSpend?.spend_total ?? 0} />}
+
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="canvas">Canvas</TabsTrigger>
           <TabsTrigger value="settings">Approval, Schedule &amp; Exclusions</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="members">Members</TabsTrigger>
         </TabsList>
 
         <TabsContent value="canvas" className="space-y-3">
@@ -429,7 +466,7 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
                 templates={templates}
                 adSets={adSets}
                 metaAdLinkedNodeIds={metaAdLinkedNodeIds}
-                journeyWindow={{ start_date: journey?.start_date, end_date: journey?.end_date }}
+                journeyWindow={{ start_date: journey?.start_date, end_date: journey?.end_date, budget_cap: journey?.budget_cap }}
                 metaAdLinks={metaAdLinks}
                 adSetSharing={adSetSharing}
                 onApplyMetaSchedule={(id) => applyMetaScheduleMutation.mutate(id)}
@@ -448,6 +485,10 @@ export default function JourneyCanvas({ journeyId, onBack, initialTab }: { journ
 
         <TabsContent value="settings">
           {journey && <JourneySettingsPanel journeyId={journeyId} journey={journey} />}
+        </TabsContent>
+
+        <TabsContent value="members">
+          <JourneyMembers journeyId={journeyId} />
         </TabsContent>
 
         <TabsContent value="analytics">

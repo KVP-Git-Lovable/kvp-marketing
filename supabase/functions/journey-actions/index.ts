@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { adScheduleModeOf, resolveAdSchedule } from "../_shared/meta-ad-schedule.ts";
+import { adBudgetModeOf, resolveAdBudget } from "../_shared/meta-ad-budget.ts";
 
 const JOURNEY_OBJECTIVES = new Set(['lead_generation', 'engagement', 'awareness', 'conversion', 're_engagement', 'event_promotion']);
 
@@ -77,29 +78,60 @@ async function callMetaApi(supabaseUrl: string, authHeader: string, payload: Rec
   }
 }
 
+// Applies each Meta Ad node's schedule and then its budget to the linked Ad Set (schedule first, because a
+// lifetime budget needs the end date). Results are recorded on journey_meta_ad_links.
 // deno-lint-ignore no-explicit-any
 async function applyMetaAdSchedules(supabase: any, supabaseUrl: string, authHeader: string, journey: any, onlyNodeId?: string) {
   const results: Array<{ node_id: string; status: 'applied' | 'skipped' | 'failed'; message?: string }> = [];
   const nodes = (journey.canvas_data?.nodes || []).filter((n: any) => n.type === 'meta_ad' && n.data?.ad_set_row_id && (!onlyNodeId || n.id === onlyNodeId));
   for (const node of nodes) {
-    if (adScheduleModeOf(node.data) === 'none') { results.push({ node_id: node.id, status: 'skipped' }); continue; }
-    const plan = resolveAdSchedule(node.data, { start_date: journey.start_date, end_date: journey.end_date });
+    const scheduleOn = adScheduleModeOf(node.data) !== 'none';
+    const budgetOn = adBudgetModeOf(node.data) !== 'none';
+    if (!scheduleOn && !budgetOn) { results.push({ node_id: node.id, status: 'skipped' }); continue; }
     const saveLink = (fields: Record<string, unknown>) =>
       supabase.from('journey_meta_ad_links').update({ ...fields, updated_at: new Date().toISOString() }).eq('journey_id', journey.id).eq('node_id', node.id);
-    if (plan.errors.length > 0) {
-      await saveLink({ last_error: plan.errors.join(' ') });
-      results.push({ node_id: node.id, status: 'failed', message: plan.errors.join(' ') });
-      continue;
+    const fail = async (message: string) => {
+      await saveLink({ last_error: message });
+      results.push({ node_id: node.id, status: 'failed', message });
+    };
+
+    const notes: string[] = [];
+    let applied = false;
+    let endIso: string | null = null;
+
+    if (scheduleOn) {
+      const plan = resolveAdSchedule(node.data, { start_date: journey.start_date, end_date: journey.end_date });
+      if (plan.errors.length > 0) { await fail(plan.errors.join(' ')); continue; }
+      if (plan.apply && (plan.start || plan.end)) {
+        const r = await callMetaApi(supabaseUrl, authHeader, { action: 'ad_sets_set_schedule', ad_set_id: node.data.ad_set_row_id, start_at: plan.start ?? undefined, end_at: plan.end ?? undefined });
+        if (!r.ok) { await fail(r.error ?? 'Meta rejected the schedule'); continue; }
+        await saveLink({ applied_start_at: r.body?.start_at ?? null, applied_end_at: r.body?.end_at ?? null, applied_at: new Date().toISOString(), last_error: null });
+        if (r.body?.note) notes.push(r.body.note);
+        endIso = plan.end;
+        applied = true;
+      } else if (plan.warnings[0]) {
+        notes.push(plan.warnings[0]);
+      }
     }
-    if (!plan.apply || (!plan.start && !plan.end)) { results.push({ node_id: node.id, status: 'skipped', message: plan.warnings[0] }); continue; }
-    const r = await callMetaApi(supabaseUrl, authHeader, { action: 'ad_sets_set_schedule', ad_set_id: node.data.ad_set_row_id, start_at: plan.start ?? undefined, end_at: plan.end ?? undefined });
-    if (!r.ok) {
-      await saveLink({ last_error: r.error });
-      results.push({ node_id: node.id, status: 'failed', message: r.error ?? 'Meta rejected the schedule' });
-    } else {
-      await saveLink({ applied_start_at: r.body?.start_at ?? null, applied_end_at: r.body?.end_at ?? null, applied_at: new Date().toISOString(), last_error: r.body?.note ?? null });
-      results.push({ node_id: node.id, status: 'applied', message: r.body?.note ?? undefined });
+
+    if (budgetOn) {
+      if (!endIso) {
+        const { data: adSet } = await supabase.from('meta_ad_sets').select('end_at').eq('id', node.data.ad_set_row_id).maybeSingle();
+        endIso = adSet?.end_at ?? null;
+      }
+      const budget = resolveAdBudget(node.data, journey.budget_cap, endIso);
+      if (budget.errors.length > 0) { await fail(budget.errors.join(' ')); continue; }
+      if (budget.apply && budget.type && budget.amount !== null) {
+        const r = await callMetaApi(supabaseUrl, authHeader, { action: 'ad_sets_set_budget', ad_set_id: node.data.ad_set_row_id, budget_type: budget.type, amount: budget.amount });
+        if (!r.ok) { await fail(r.error ?? 'Meta rejected the budget'); continue; }
+        await saveLink({ applied_budget: budget.amount, applied_budget_type: budget.type, applied_at: new Date().toISOString(), last_error: null });
+        notes.push(...budget.warnings);
+        applied = true;
+      }
     }
+
+    results.push({ node_id: node.id, status: applied ? 'applied' : 'skipped', message: notes[0] });
+    if (applied && notes.length > 0) await saveLink({ last_error: notes[0] });
   }
   return results;
 }
@@ -109,7 +141,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
   // Visible on every response (even a 401) so a deploy can be verified without a login.
-  'X-Journeys-Build': 'meta-ad-schedule-2026-11-13',
+  'X-Journeys-Build': 'meta-ad-budget-2026-11-17',
 };
 
 // Journey CRUD + control, targeting this project's own `retailers` table as
@@ -658,6 +690,67 @@ serve(async (req) => {
           }
         }
         return new Response(JSON.stringify({ success: true, meta_paused: metaPaused, meta_pause_errors: metaPauseErrors }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      // Refresh (and cache) the Meta spend of each Ad Set linked to this journey's Meta Ad nodes.
+      if (action === 'refresh-meta-spend') {
+        const { journey_id, force } = body;
+        const { data: links } = await supabase.from('journey_meta_ad_links')
+          .select('id, node_id, meta_ad_set_row_id, spend_amount, spend_synced_at').eq('journey_id', journey_id);
+        const list = links || [];
+        const freshMs = 5 * 60 * 1000;
+        const stale = list.filter((l: any) => force === true || !l.spend_synced_at || Date.now() - new Date(l.spend_synced_at).getTime() > freshMs);
+        if (stale.length > 0) {
+          const r = await callMetaApi(supabaseUrl, authHeader, { action: 'ad_sets_spend', ad_set_ids: stale.map((l: any) => l.meta_ad_set_row_id) });
+          if (r.ok) {
+            for (const l of stale) {
+              const value = r.body?.spend?.[l.meta_ad_set_row_id];
+              if (typeof value === 'number') {
+                await supabase.from('journey_meta_ad_links').update({ spend_amount: value, spend_synced_at: new Date().toISOString() }).eq('id', l.id);
+                l.spend_amount = value;
+              }
+            }
+          }
+        }
+        const total = list.reduce((sum: number, l: any) => sum + (Number(l.spend_amount) || 0), 0);
+        return new Response(JSON.stringify({ success: true, spend_total: total, nodes: list.map((l: any) => ({ node_id: l.node_id, spend_amount: l.spend_amount })) }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Copy a journey as a new draft (no dates, no Meta links, owned by the caller).
+      if (action === 'clone') {
+        const { journey_id } = body;
+        const { data: src } = await supabase.from('journeys').select('*').eq('id', journey_id).is('deleted_at', null).maybeSingle();
+        if (!src) {
+          return new Response(JSON.stringify({ error: 'Journey not found' }), {
+            status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const canvas = JSON.parse(JSON.stringify(src.canvas_data ?? {}));
+        if (Array.isArray(canvas.nodes)) {
+          canvas.nodes = canvas.nodes.map((n: any) => (n.type === 'meta_ad' ? { ...n, data: { ...n.data, audience_replace_confirmed: false } } : n));
+        }
+        const { data: copy, error: cloneError } = await supabase.from('journeys').insert({
+          name: `${src.name} (copy)`.slice(0, 200),
+          segment_type: src.segment_type,
+          filters: src.filters,
+          canvas_data: canvas,
+          objective: src.objective,
+          description: src.description,
+          budget_cap: src.budget_cap,
+          expected_revenue: src.expected_revenue,
+          expected_response_pct: src.expected_response_pct,
+          status: 'draft',
+          created_by: user.id,
+          owner_id: user.id,
+        }).select().single();
+        if (cloneError) {
+          return new Response(JSON.stringify({ error: cloneError.message }), {
+            status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify(copy), { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
       // Re-apply one Meta Ad node's schedule to its Ad Set (button on the node panel).

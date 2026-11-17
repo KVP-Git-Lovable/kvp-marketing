@@ -141,7 +141,10 @@ export function MetaAdNode({ data, selected }: NodeProps) {
     ad_set_row_id?: string; ad_set_name?: string; campaign_name?: string; pushed_count?: number; audience_replace_confirmed?: boolean;
     schedule_mode?: string; ad_start_at?: string | null; ad_end_at?: string | null;
     link_applied_at?: string | null; link_error?: string | null; link_paused?: boolean;
+    budget_mode?: string; budget_share_pct?: number | string | null; budget_custom_amount?: number | string | null; budget_custom_type?: string;
+    link_budget?: number | null; link_budget_type?: string | null; link_spend?: number | null; journey_budget_cap?: number | null;
   };
+  const inr = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
   const shortDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "short" }) : "…");
   const needsConfirmation = !!d.ad_set_row_id && typeof d.pushed_count !== "number" && !d.audience_replace_confirmed;
   return (
@@ -157,6 +160,9 @@ export function MetaAdNode({ data, selected }: NodeProps) {
       )}
       {d.schedule_mode === "follow_journey" && <p className="text-[10px] text-muted-foreground">Dates: follows journey</p>}
       {d.schedule_mode === "custom" && <p className="text-[10px] text-muted-foreground">Dates: {shortDate(d.ad_start_at)} → {shortDate(d.ad_end_at)}</p>}
+      {d.budget_mode === "share" && <p className="text-[10px] text-muted-foreground">Budget: {d.budget_share_pct}% of journey{d.journey_budget_cap ? ` (${inr(Number(d.journey_budget_cap) * Number(d.budget_share_pct || 0) / 100)})` : ""}</p>}
+      {d.budget_mode === "custom" && <p className="text-[10px] text-muted-foreground">Budget: {inr(Number(d.budget_custom_amount || 0))} {d.budget_custom_type === "lifetime" ? "lifetime" : "daily"}</p>}
+      {typeof d.link_budget === "number" && <p className="text-green-700 text-[10px]">✓ Budget {inr(d.link_budget)} {d.link_budget_type}{typeof d.link_spend === "number" ? ` · spent ${inr(d.link_spend)}` : ""}</p>}
       {d.link_error ? <p className="text-destructive text-[10px] truncate" title={d.link_error}>⚠ Meta: {d.link_error}</p>
         : d.link_applied_at ? <p className="text-green-700 text-[10px]">✓ Schedule applied</p> : null}
       {d.link_paused && <p className="text-amber-700 text-[10px]">Ad set paused with journey</p>}

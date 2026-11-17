@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Expose-Headers': 'x-meta-api-build',
-  'X-Meta-Api-Build': 'instant-forms-2026-11-17',
+  'X-Meta-Api-Build': 'adset-budget-2026-11-17',
 };
 
 import { resolveAdSetPromotion, isInstantFormGoal } from '../_shared/metaAdSetGoals.ts';
@@ -1158,6 +1158,49 @@ serve(async (req) => {
       const { error } = await supabase.from('meta_ad_sets').update(update).eq('id', ad_set_id);
       if (error) return json({ error: error.message }, 500);
       return json({ success: true, start_applied: startApplied, end_applied: !!endIso, start_at: startApplied ? startIso : null, end_at: endIso ?? null, note: startNote });
+    }
+
+    // Budget change for a Journey Meta Ad node: sends ONLY the ad set's daily/lifetime budget.
+    if (action === 'ad_sets_set_budget') {
+      const { ad_set_id, budget_type, amount } = body;
+      const { data: adSet } = await supabase.from('meta_ad_sets').select('id, meta_ad_set_id, campaign_id, end_at').eq('id', ad_set_id).single();
+      if (!adSet) return json({ error: 'Ad set not found' }, 404);
+      const { data: campaign } = await supabase.from('meta_campaigns').select('budget_type, daily_budget, ad_account_id').eq('id', adSet.campaign_id).single();
+      if (campaign?.budget_type && campaign.daily_budget != null) {
+        return json({ error: "This ad set's campaign controls the budget (campaign budget optimisation). Change the budget on the campaign instead." }, 400);
+      }
+      const { data: acc } = await supabase.from('meta_ad_accounts').select('currency').eq('id', campaign?.ad_account_id).maybeSingle();
+      if (acc?.currency && String(acc.currency).toUpperCase() !== 'INR') {
+        return json({ error: `This ad account bills in ${acc.currency}, not INR, so the journey budget (₹) cannot be applied to it.` }, 400);
+      }
+      const value = Number(amount);
+      if (budget_type !== 'daily' && budget_type !== 'lifetime') return json({ error: 'budget_type must be daily or lifetime' }, 400);
+      if (!Number.isFinite(value) || value <= 0) return json({ error: 'amount must be greater than zero' }, 400);
+      if (budget_type === 'lifetime' && !(adSet.end_at && new Date(adSet.end_at).getTime() > Date.now())) {
+        return json({ error: 'A lifetime budget needs the ad set to have an end date in the future. Apply the schedule first.' }, 400);
+      }
+      const minor = Math.round(value * 100);
+      await graph(`/${adSet.meta_ad_set_id}`, accessToken, { method: 'POST', body: budget_type === 'daily' ? { daily_budget: minor } : { lifetime_budget: minor } });
+      const { error } = await supabase.from('meta_ad_sets').update({ budget_type, daily_budget: value, last_synced_at: new Date().toISOString() }).eq('id', ad_set_id);
+      if (error) return json({ error: error.message }, 500);
+      return json({ success: true, budget_type, amount: value });
+    }
+
+    // Total spend (account currency) per ad set, read from Meta insights.
+    if (action === 'ad_sets_spend') {
+      const ids: string[] = Array.isArray(body.ad_set_ids) ? body.ad_set_ids.slice(0, 20).map(String) : [];
+      if (ids.length === 0) return json({ spend: {} });
+      const { data: sets } = await supabase.from('meta_ad_sets').select('id, meta_ad_set_id').in('id', ids);
+      const spend: Record<string, number | null> = {};
+      for (const set of sets || []) {
+        try {
+          const resp = await graph(`/${set.meta_ad_set_id}/insights`, accessToken, { params: { fields: 'spend', date_preset: 'maximum' } });
+          spend[set.id] = Number(resp?.data?.[0]?.spend ?? 0);
+        } catch (_) {
+          spend[set.id] = null;
+        }
+      }
+      return json({ spend });
     }
 
     if (action === 'ad_sets_publish' || action === 'ad_sets_pause' || action === 'ad_sets_resume') {

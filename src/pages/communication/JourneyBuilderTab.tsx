@@ -339,7 +339,7 @@ export default function JourneyBuilderTab() {
   };
 
   if (editingId) {
-    return <JourneyCanvas journeyId={editingId} initialTab={initialTab} onBack={() => setEditingId(null)} />;
+    return <JourneyCanvas key={editingId} journeyId={editingId} initialTab={initialTab} onBack={() => setEditingId(null)} />;
   }
 
   const allSelected = filteredJourneys.length > 0 && filteredJourneys.every((j) => selectedIds.includes(j.id));
