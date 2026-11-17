@@ -16,7 +16,9 @@ import { toast } from "sonner";
 import { LocationPicker } from "@/components/communication/meta/LocationPicker";
 import { CustomerListAudienceDialog } from "@/components/communication/meta/CustomerListAudienceDialog";
 import { emptyGeo, readGeo, type GeoSelection } from "@/lib/metaTargeting";
+import { invokeMetaApi, invokeMetaApiRaw } from "@/lib/metaInvoke";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
+import { goalsForObjective, needsPixel, isInstantFormGoal, CONVERSION_EVENTS_BY_OBJECTIVE } from "../../../../supabase/functions/_shared/metaAdSetGoals";
 
 interface CustomAudience { id: string; name: string; status: string; row_count: number }
 
@@ -30,12 +32,16 @@ interface AdSet {
   custom_audience_row_id: string | null;
   meta_campaigns: { id: string; name: string; ad_account_id: string };
 }
-interface Campaign { id: string; name: string; ad_account_id: string; budget_type: "daily" | "lifetime" | null; daily_budget: number | null }
+interface Campaign { id: string; name: string; ad_account_id: string; objective: string | null; budget_type: "daily" | "lifetime" | null; daily_budget: number | null; bid_strategy: string | null }
 
-const OPTIMIZATION_GOALS = [
-  "REACH", "IMPRESSIONS", "LINK_CLICKS", "LANDING_PAGE_VIEWS", "CONVERSIONS", "LEAD_GENERATION",
-  "OFFSITE_CONVERSIONS", "THRUPLAY", "VALUE", "POST_ENGAGEMENT", "VIDEO_VIEWS", "QUALITY_LEAD", "APP_INSTALLS",
-];
+// Mirrors NO_AD_SET_BID_CAP_STRATEGIES in supabase/functions/meta-api/index.ts — for a CBO
+// campaign using one of these, bid strategy is owned entirely by the campaign and an ad set
+// under it must not set its own bid_strategy/bid_amount at all.
+const NO_AD_SET_BID_CAP_STRATEGIES = new Set(["LOWEST_COST_WITHOUT_CAP", "LOWEST_COST_WITH_MIN_ROAS"]);
+
+// Goals are filtered by the campaign's objective (see _shared/metaAdSetGoals.ts); this is only
+// the fallback when no campaign is picked yet.
+const OPTIMIZATION_GOALS = goalsForObjective(null);
 const BILLING_EVENTS = ["IMPRESSIONS", "LINK_CLICKS", "THRUPLAY", "APP_INSTALLS", "PAGE_LIKES", "POST_ENGAGEMENT", "VIDEO_VIEWS", "PURCHASE"];
 const AD_SET_BID_STRATEGIES = ["COST_CAP", "LOWEST_COST_WITH_BID_CAP"];
 const PLACEMENT_OPTIONS = [
@@ -65,6 +71,7 @@ const initialForm = {
   geo: emptyGeo(), geoFromLegacy: false, geoLegacyText: "",
   placementsType: "automatic" as "automatic" | "manual", placementsSelected: [] as string[],
   audienceType: "broad" as "broad" | "custom", custom_audience_row_id: "",
+  pixel_id: "", conversion_event: "", page_row_id: "",
 };
 
 export default function MetaAdSetsPanel({ adAccountId, adAccountRowId }: { adAccountId: string; adAccountRowId?: string }) {
@@ -85,18 +92,8 @@ export default function MetaAdSetsPanel({ adAccountId, adAccountRowId }: { adAcc
     },
   });
 
-  const invoke = async (action: string, extra: Record<string, unknown> = {}) => {
-    const { data, error } = await supabase.functions.invoke("meta-api", { body: { action, ...extra } });
-    if (error) throw error;
-    if (data?.error) throw new Error(data.error);
-    return data;
-  };
-
-  const invokeRaw = async (action: string, extra: Record<string, unknown> = {}) => {
-    const { data, error } = await supabase.functions.invoke("meta-api", { body: { action, ...extra } });
-    if (error) throw error;
-    return data;
-  };
+  const invoke = invokeMetaApi;
+  const invokeRaw = invokeMetaApiRaw;
 
   const { data: campaigns = [] } = useQuery({
     queryKey: ["meta-campaigns-for-adsets"],
@@ -114,12 +111,40 @@ export default function MetaAdSetsPanel({ adAccountId, adAccountRowId }: { adAcc
 
   const selectedCampaign = campaignsInAccount.find((c) => c.id === form.campaign_row_id);
   const campaignHasBudget = !!selectedCampaign?.budget_type && selectedCampaign?.daily_budget != null;
+  const campaignLocksBidStrategy = campaignHasBudget && NO_AD_SET_BID_CAP_STRATEGIES.has(selectedCampaign?.bid_strategy || "");
+  const allowedGoals = goalsForObjective(selectedCampaign?.objective);
+  const showPixel = !editId && !!selectedCampaign && needsPixel(selectedCampaign.objective, form.optimization_goal);
+  const showLeadPage = !editId && !!selectedCampaign && isInstantFormGoal(form.optimization_goal);
+  const { data: leadPageData } = useQuery({
+    queryKey: ["meta-lead-pages"],
+    enabled: showLeadPage,
+    queryFn: async () => {
+      const st = await invoke("status") as { connection_id: string | null; default_page_id: string | null };
+      if (!st?.connection_id) return { pages: [] as { id: string; page_id: string; page_name: string | null }[], defaultId: null as string | null };
+      const { data, error } = await supabase.from("meta_pages").select("id, page_id, page_name").eq("connection_id", st.connection_id).order("page_name");
+      if (error) throw error;
+      const def = (data || []).find((p) => p.id === st.default_page_id || p.page_id === st.default_page_id);
+      return { pages: data || [], defaultId: def?.id || null };
+    },
+  });
+  const leadPages = leadPageData?.pages || [];
+  const leadPageRowId = form.page_row_id || leadPageData?.defaultId || "";
+  const conversionEvents = CONVERSION_EVENTS_BY_OBJECTIVE[selectedCampaign?.objective || ""] || ["LEAD"];
+
+  const { data: pixels = [], isFetching: loadingPixels } = useQuery({
+    queryKey: ["meta-ad-pixels", selectedCampaign?.ad_account_id],
+    enabled: showPixel,
+    queryFn: async () => {
+      const res = await invoke("list_ad_pixels", { ad_account_row_id: selectedCampaign?.ad_account_id }) as { pixels: { id: string; name: string }[] };
+      return res.pixels || [];
+    },
+  });
 
   const createMutation = useMutation({
     mutationFn: () => invoke("ad_sets_create", {
       campaign_row_id: form.campaign_row_id, name: form.name,
       optimization_goal: form.optimization_goal, billing_event: form.billing_event,
-      bid_strategy: form.bid_strategy || undefined, bid_amount: Number(form.bid_amount) || undefined,
+      ...(campaignLocksBidStrategy ? {} : { bid_strategy: form.bid_strategy || undefined, bid_amount: Number(form.bid_amount) || undefined }),
       ...(campaignHasBudget ? {} : { budget_type: form.budget_type, budget_amount: Number(form.budget_amount) || undefined }),
       start_at: form.start_at || undefined, end_at: form.end_at || undefined,
       age_min: Number(form.age_min), age_max: Number(form.age_max),
@@ -127,6 +152,8 @@ export default function MetaAdSetsPanel({ adAccountId, adAccountRowId }: { adAcc
       geo: form.geo,
       placements: { type: form.placementsType, selected: form.placementsType === "manual" ? form.placementsSelected : undefined },
       custom_audience_row_id: form.audienceType === "custom" ? form.custom_audience_row_id || undefined : undefined,
+      ...(showLeadPage ? { page_row_id: leadPageRowId || undefined } : {}),
+      ...(showPixel ? { pixel_id: form.pixel_id || undefined, conversion_event: form.conversion_event || conversionEvents[0] } : {}),
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["meta-ad-sets-list"] });
@@ -139,7 +166,7 @@ export default function MetaAdSetsPanel({ adAccountId, adAccountRowId }: { adAcc
   const updateMutation = useMutation({
     mutationFn: () => invoke("ad_sets_update", {
       ad_set_id: editId, name: form.name,
-      bid_strategy: form.bid_strategy || undefined, bid_amount: Number(form.bid_amount) || undefined,
+      ...(campaignLocksBidStrategy ? {} : { bid_strategy: form.bid_strategy || undefined, bid_amount: Number(form.bid_amount) || undefined }),
       ...(campaignHasBudget ? {} : { budget_type: form.budget_type, budget_amount: Number(form.budget_amount) || undefined }),
       start_at: form.start_at || undefined, end_at: form.end_at || undefined,
       age_min: Number(form.age_min), age_max: Number(form.age_max),
@@ -171,6 +198,7 @@ export default function MetaAdSetsPanel({ adAccountId, adAccountRowId }: { adAcc
       geo, geoFromLegacy: fromLegacy, geoLegacyText: (a.targeting?.locations || []).join(", "),
       placementsType: a.placements?.type || "automatic", placementsSelected: a.placements?.selected || [],
       audienceType: a.custom_audience_row_id ? "custom" : "broad", custom_audience_row_id: a.custom_audience_row_id || "",
+      pixel_id: "", conversion_event: "", page_row_id: "",
     });
     setShowCreate(true);
   };
@@ -295,7 +323,10 @@ export default function MetaAdSetsPanel({ adAccountId, adAccountRowId }: { adAcc
           <div className="space-y-3">
             <div>
               <Label className="text-xs">Campaign</Label>
-              <Select value={form.campaign_row_id} onValueChange={(v) => setForm({ ...form, campaign_row_id: v })} disabled={!!editId}>
+              <Select value={form.campaign_row_id} onValueChange={(v) => {
+                const goals = goalsForObjective(campaignsInAccount.find((c) => c.id === v)?.objective);
+                setForm({ ...form, campaign_row_id: v, optimization_goal: goals.includes(form.optimization_goal) ? form.optimization_goal : goals[0], conversion_event: "" });
+              }} disabled={!!editId}>
                 <SelectTrigger className="h-9"><SelectValue placeholder="Select campaign" /></SelectTrigger>
                 <SelectContent>{campaignsInAccount.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
               </Select>
@@ -309,7 +340,7 @@ export default function MetaAdSetsPanel({ adAccountId, adAccountRowId }: { adAcc
                 <Label className="text-xs">Optimization Goal{editId && " (locked after creation)"}</Label>
                 <Select value={form.optimization_goal} onValueChange={(v) => setForm({ ...form, optimization_goal: v })} disabled={!!editId}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>{OPTIMIZATION_GOALS.map((g) => <SelectItem key={g} value={g}>{g.replace(/_/g, " ")}</SelectItem>)}</SelectContent>
+                  <SelectContent>{(editId ? [form.optimization_goal] : allowedGoals).map((g) => <SelectItem key={g} value={g}>{g.replace(/_/g, " ")}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
@@ -320,22 +351,70 @@ export default function MetaAdSetsPanel({ adAccountId, adAccountRowId }: { adAcc
                 </Select>
               </div>
             </div>
-            <div>
-              <Label className="text-xs">Bid Strategy</Label>
-              <Select value={form.bid_strategy} onValueChange={(v) => setForm({ ...form, bid_strategy: v })}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Default" /></SelectTrigger>
-                <SelectContent>{AD_SET_BID_STRATEGIES.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
+            {showLeadPage && (
+              <div className="space-y-2 rounded-md border border-border p-3">
+                <p className="text-xs text-muted-foreground">
+                  Lead generation uses an instant form people fill in on Facebook / Instagram. Pick the Facebook Page that will own the form — this can't be changed after the ad set is created. You'll choose or create the form when you add the ad.
+                </p>
+                <div>
+                  <Label className="text-xs">Facebook Page</Label>
+                  <Select value={leadPageRowId} onValueChange={(v) => setForm({ ...form, page_row_id: v })}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder={leadPages.length ? "Select page" : "No synced Page found"} /></SelectTrigger>
+                    <SelectContent>{leadPages.map((p) => <SelectItem key={p.id} value={p.id}>{p.page_name || p.page_id}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+            {showPixel && (
+              <div className="grid grid-cols-2 gap-3 rounded-md border border-border p-3">
+                <p className="col-span-2 text-xs text-muted-foreground">
+                  {selectedCampaign?.objective === "OUTCOME_SALES" ? "Sales" : "Leads"} campaigns need your Meta pixel, so Meta knows which website action to count. This can't be added after the ad set is created.
+                </p>
+                <div>
+                  <Label className="text-xs">Meta pixel</Label>
+                  <Select value={form.pixel_id} onValueChange={(v) => setForm({ ...form, pixel_id: v })}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder={loadingPixels ? "Loading..." : pixels.length ? "Select pixel" : "No pixel found"} /></SelectTrigger>
+                    <SelectContent>{pixels.map((px) => <SelectItem key={px.id} value={px.id}>{px.name || px.id}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Result to count</Label>
+                  <Select value={form.conversion_event || conversionEvents[0]} onValueChange={(v) => setForm({ ...form, conversion_event: v })}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>{conversionEvents.map((ev) => <SelectItem key={ev} value={ev}>{ev.replace(/_/g, " ")}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                {!loadingPixels && pixels.length === 0 && (
+                  <p className="col-span-2 text-xs text-muted-foreground">
+                    No pixel is set up on this ad account. Create one in Meta Events Manager first, or use a Traffic campaign instead.
+                  </p>
+                )}
+              </div>
+            )}
+            {campaignLocksBidStrategy ? (
+              <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                Bid strategy is set at the campaign level for this campaign — "{selectedCampaign?.bid_strategy?.replace(/_/g, " ")}". Ad sets under it can't set their own bid amount.
+              </div>
+            ) : (
+              <div>
+                <Label className="text-xs">Bid Strategy</Label>
+                <Select value={form.bid_strategy} onValueChange={(v) => setForm({ ...form, bid_strategy: v })}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="Default" /></SelectTrigger>
+                  <SelectContent>{AD_SET_BID_STRATEGIES.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            )}
             {campaignHasBudget ? (
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
                   Budget is set at the campaign level for this campaign — ₹{selectedCampaign?.daily_budget}/{selectedCampaign?.budget_type}.
                 </div>
-                <div>
-                  <Label className="text-xs">Bid Amount</Label>
-                  <Input type="number" value={form.bid_amount} onChange={(e) => setForm({ ...form, bid_amount: e.target.value })} />
-                </div>
+                {!campaignLocksBidStrategy && (
+                  <div>
+                    <Label className="text-xs">Bid Amount</Label>
+                    <Input type="number" value={form.bid_amount} onChange={(e) => setForm({ ...form, bid_amount: e.target.value })} />
+                  </div>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-3">
@@ -467,7 +546,7 @@ export default function MetaAdSetsPanel({ adAccountId, adAccountRowId }: { adAcc
                 {updateMutation.isPending ? "Saving..." : "Save Changes"}
               </Button>
             ) : (
-              <Button onClick={() => createMutation.mutate()} disabled={!form.campaign_row_id || !form.name || (!campaignHasBudget && !form.budget_amount) || !form.bid_amount || createMutation.isPending}>
+              <Button onClick={() => createMutation.mutate()} disabled={!form.campaign_row_id || !form.name || (!campaignHasBudget && !form.budget_amount) || (!campaignLocksBidStrategy && !form.bid_amount) || (showPixel && !form.pixel_id) || (showLeadPage && !leadPageRowId) || createMutation.isPending}>
                 {createMutation.isPending ? "Creating..." : "Create Ad Set"}
               </Button>
             )}

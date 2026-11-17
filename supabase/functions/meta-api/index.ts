@@ -6,8 +6,11 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Expose-Headers': 'x-meta-api-build',
-  'X-Meta-Api-Build': 'adset-schedule-2026-11-13',
+  'X-Meta-Api-Build': 'instant-forms-2026-11-17',
 };
+
+import { resolveAdSetPromotion, isInstantFormGoal } from '../_shared/metaAdSetGoals.ts';
+import { validateLeadForm, buildLeadFormPayload, buildLeadStorySpec, type LeadFormInput } from '../_shared/meta-leadforms.ts';
 
 const GRAPH = 'https://graph.facebook.com/v19.0';
 
@@ -157,20 +160,29 @@ function placementsToMeta(selected: string[]): { publisher_platforms: string[]; 
 
 type GeoSelection = {
   countries?: string[];
-  regions?: { key: string; name?: string }[];
-  cities?: { key: string; name?: string; radius?: number; distance_unit?: string }[];
+  regions?: { key: string; name?: string; country?: string }[];
+  cities?: { key: string; name?: string; country?: string; radius?: number; distance_unit?: string }[];
 };
 
 function geoToMeta(geo: GeoSelection | undefined | null, fallbackLocations?: string[]): Record<string, unknown> {
   if (geo && ((geo.countries?.length) || (geo.regions?.length) || (geo.cities?.length))) {
     const out: Record<string, unknown> = {};
-    const countries = (geo.countries || []).map((c) => c.toUpperCase()).filter((c) => /^[A-Z]{2}$/.test(c));
     const regions = (geo.regions || []).filter((r) => r?.key).map((r) => ({ key: String(r.key) }));
     const cities = (geo.cities || []).filter((c) => c?.key).map((c) => ({
       key: String(c.key),
       radius: Number(c.radius) > 0 ? Number(c.radius) : 25,
       distance_unit: c.distance_unit === 'mile' ? 'mile' : 'kilometer',
     }));
+    // Meta rejects a country together with a region/city inside that same
+    // country ("Remove a conflicting location to continue", subcode
+    // 1487756) — a region/city selection already implies its country, so
+    // drop any country that's made redundant by a more specific pick below it.
+    const narrowedCountries = new Set(
+      [...(geo.regions || []), ...(geo.cities || [])].map((x) => x?.country?.toUpperCase()).filter(Boolean),
+    );
+    const countries = (geo.countries || [])
+      .map((c) => c.toUpperCase())
+      .filter((c) => /^[A-Z]{2}$/.test(c) && !narrowedCountries.has(c));
     if (countries.length) out.countries = countries;
     if (regions.length) out.regions = regions;
     if (cities.length) out.cities = cities;
@@ -198,6 +210,15 @@ const AUDIENCE_MAX_ROWS = 10000;
 
 /** Meta error_subcode: "Custom Audience Terms Not Accepted" for the ad account. */
 const META_SUBCODE_CA_TERMS = 1870090;
+/** Meta error_subcode: ad set has no promoted object matching its campaign objective. */
+const META_SUBCODE_MISSING_PROMOTED_OBJECT = 1885154;
+
+// For a Campaign Budget Optimization (CBO) campaign, bid_strategy is owned by the
+// campaign, not the ad set. When the campaign's own strategy is one of these (no
+// bid cap applies), Meta rejects any ad set that still carries a bid_strategy/
+// bid_amount — same "exactly one level owns this" rule as the budget check below,
+// just for bid strategy instead of budget.
+const NO_AD_SET_BID_CAP_STRATEGIES = new Set(['LOWEST_COST_WITHOUT_CAP', 'LOWEST_COST_WITH_MIN_ROAS']);
 
 function isCustomAudienceTermsError(e: unknown): boolean {
   const err = e as Error & { metaSubcode?: unknown };
@@ -479,6 +500,14 @@ serve(async (req) => {
       } catch {
         return json({ accounts: [] });
       }
+    }
+
+    if (action === 'list_ad_pixels') {
+      const { ad_account_row_id } = body;
+      const { data: acc } = await supabase.from('meta_ad_accounts').select('ad_account_id').eq('id', ad_account_row_id).maybeSingle();
+      if (!acc) return json({ pixels: [] });
+      const resp = await graph(`/act_${acc.ad_account_id}/adspixels`, accessToken, { params: { fields: 'id,name,last_fired_time', limit: '100' } });
+      return json({ pixels: resp.data || [] });
     }
 
     if (action === 'search_geo') {
@@ -915,10 +944,22 @@ serve(async (req) => {
       const {
         campaign_row_id, name, optimization_goal, billing_event, bid_strategy, bid_amount,
         budget_type, budget_amount, start_at, end_at, age_min, age_max, genders, locations, geo, placements,
-        custom_audience_row_id,
+        custom_audience_row_id, pixel_id, conversion_event, page_row_id: leadPageRowId,
       } = body;
-      const { data: campaign } = await supabase.from('meta_campaigns').select('meta_campaign_id, ad_account_id, budget_type, daily_budget').eq('id', campaign_row_id).single();
+      const { data: campaign } = await supabase.from('meta_campaigns').select('meta_campaign_id, ad_account_id, budget_type, daily_budget, bid_strategy, objective').eq('id', campaign_row_id).single();
       if (!campaign) return json({ error: 'Campaign not found' }, 404);
+      // Meta needs the "object to promote" (e.g. pixel + event for Leads/Sales) on the ad set
+      // itself, and it can't be added later — see _shared/metaAdSetGoals.ts.
+      let leadPageId: string | null = null;
+      if (isInstantFormGoal(optimization_goal)) {
+        const pageRowId = leadPageRowId || connection?.default_page_id;
+        if (pageRowId) {
+          const { data: lp } = await supabase.from('meta_pages').select('page_id').eq(/^[0-9a-f-]{36}$/i.test(String(pageRowId)) ? 'id' : 'page_id', String(pageRowId)).limit(1).maybeSingle();
+          leadPageId = lp?.page_id || null;
+        }
+      }
+      const promotion = resolveAdSetPromotion({ objective: campaign.objective, goal: optimization_goal, pixelId: pixel_id, conversionEvent: conversion_event, pageId: leadPageId });
+      if (!promotion.ok) return json({ error: promotion.error }, 400);
       const { data: acc } = await supabase.from('meta_ad_accounts').select('ad_account_id').eq('id', campaign.ad_account_id).single();
       if (!acc) return json({ error: 'Ad account not found' }, 404);
 
@@ -930,6 +971,11 @@ serve(async (req) => {
       if (!campaignHasBudget && (!budget_type || !budget_amount)) {
         return json({ error: 'This campaign has no campaign-level budget (ABO). A budget is required at the ad set level.' }, 400);
       }
+      // Same one-level rule for bid strategy: a CBO campaign whose own strategy doesn't use
+      // a bid cap (e.g. the default "Lowest cost") owns bidding entirely — an ad set under it
+      // must not send its own bid_strategy/bid_amount at all, or Meta rejects it ("You can't
+      // set a bid cap on ad sets with the '<campaign strategy>' bid strategy").
+      const campaignLocksBidStrategy = campaignHasBudget && NO_AD_SET_BID_CAP_STRATEGIES.has(campaign.bid_strategy || '');
 
       const targeting = buildAdSetTargeting({ age_min, age_max, genders, locations, geo });
       let audienceExternalId: string | null = null;
@@ -946,21 +992,24 @@ serve(async (req) => {
       // apply a usable default on Meta's side — they need an explicit cap strategy plus a
       // positive bid_amount. Default to the cap strategy our own UI offers and require the
       // amount whenever a cap strategy is in play, instead of letting Meta's cryptic
-      // "(#100) bid_strategy must be one of..." error reach the user.
-      const resolvedBidStrategy = bid_strategy || 'LOWEST_COST_WITH_BID_CAP';
-      if ((resolvedBidStrategy === 'COST_CAP' || resolvedBidStrategy === 'LOWEST_COST_WITH_BID_CAP') && !(Number(bid_amount) > 0)) {
+      // "(#100) bid_strategy must be one of..." error reach the user. None of this applies
+      // when the campaign already locks bidding to a no-cap strategy (see above).
+      const resolvedBidStrategy = campaignLocksBidStrategy ? undefined : (bid_strategy || 'LOWEST_COST_WITH_BID_CAP');
+      if (!campaignLocksBidStrategy && (resolvedBidStrategy === 'COST_CAP' || resolvedBidStrategy === 'LOWEST_COST_WITH_BID_CAP') && !(Number(bid_amount) > 0)) {
         return json({ error: 'Bid Amount is required for this bid strategy.' }, 400);
       }
       const graphBody: Record<string, unknown> = {
         name, campaign_id: campaign.meta_campaign_id,
-        optimization_goal, billing_event: billing_event || 'IMPRESSIONS',
+        optimization_goal, billing_event: isInstantFormGoal(optimization_goal) ? 'IMPRESSIONS' : (billing_event || 'IMPRESSIONS'),
         bid_strategy: resolvedBidStrategy,
-        bid_amount: bid_amount ? Math.round(Number(bid_amount) * 100) : undefined,
+        bid_amount: (!campaignLocksBidStrategy && bid_amount) ? Math.round(Number(bid_amount) * 100) : undefined,
         targeting: JSON.stringify(targeting),
         status: 'PAUSED',
         start_time: start_at ? new Date(start_at).toISOString() : undefined,
         end_time: end_at ? new Date(end_at).toISOString() : undefined,
       };
+      if (promotion.promoted_object) graphBody.promoted_object = JSON.stringify(promotion.promoted_object);
+      if (promotion.destination_type) graphBody.destination_type = promotion.destination_type;
       if (!campaignHasBudget) {
         if (budget_type === 'daily') graphBody.daily_budget = Math.round(Number(budget_amount) * 100);
         if (budget_type === 'lifetime') graphBody.lifetime_budget = Math.round(Number(budget_amount) * 100);
@@ -975,11 +1024,13 @@ serve(async (req) => {
         meta_ad_set_id: created.id,
         name, status: 'paused',
         optimization_goal, billing_event: billing_event || 'IMPRESSIONS',
-        bid_strategy: resolvedBidStrategy, bid_amount: bid_amount || null,
+        bid_strategy: campaignLocksBidStrategy ? null : resolvedBidStrategy,
+        bid_amount: campaignLocksBidStrategy ? null : (bid_amount || null),
         budget_type: campaignHasBudget ? null : budget_type,
         daily_budget: campaignHasBudget ? null : (budget_amount || null),
         targeting: { age_min, age_max, genders, locations, geo }, placements: placements || null,
         custom_audience_row_id: audienceExternalId ? custom_audience_row_id : null,
+        page_id: leadPageId,
         start_at: start_at || null, end_at: end_at || null,
         last_synced_at: new Date().toISOString(),
       }).select().single();
@@ -992,9 +1043,11 @@ serve(async (req) => {
         ad_set_id, name, bid_strategy, bid_amount, budget_type, budget_amount,
         start_at, end_at, age_min, age_max, genders, locations, geo, placements, custom_audience_row_id,
       } = body;
-      const { data: adSet } = await supabase.from('meta_ad_sets').select('*, meta_campaigns!inner(budget_type, daily_budget)').eq('id', ad_set_id).single();
+      const { data: adSet } = await supabase.from('meta_ad_sets').select('*, meta_campaigns!inner(budget_type, daily_budget, bid_strategy)').eq('id', ad_set_id).single();
       if (!adSet) return json({ error: 'Ad set not found' }, 404);
       const campaignHasBudget = !!adSet.meta_campaigns?.budget_type && adSet.meta_campaigns?.daily_budget != null;
+      // Same one-level bid-strategy rule as ad_sets_create — see its comment for why.
+      const campaignLocksBidStrategy = campaignHasBudget && NO_AD_SET_BID_CAP_STRATEGIES.has(adSet.meta_campaigns?.bid_strategy || '');
 
       // Merge the app-owned fields into Meta's LIVE targeting instead of
       // replacing it wholesale — Meta's update API treats `targeting` as a
@@ -1020,13 +1073,16 @@ serve(async (req) => {
         targeting.custom_audiences = [{ id: audienceExternalId }];
         targeting.targeting_automation = { advantage_audience: 0 };
       }
-      const resolvedBidStrategy = bid_strategy || adSet.bid_strategy || 'LOWEST_COST_WITH_BID_CAP';
+      const resolvedBidStrategy = campaignLocksBidStrategy ? undefined : (bid_strategy || adSet.bid_strategy || 'LOWEST_COST_WITH_BID_CAP');
       const resolvedBidAmount = bid_amount ?? adSet.bid_amount;
-      if ((resolvedBidStrategy === 'COST_CAP' || resolvedBidStrategy === 'LOWEST_COST_WITH_BID_CAP') && !(Number(resolvedBidAmount) > 0)) {
+      if (!campaignLocksBidStrategy && (resolvedBidStrategy === 'COST_CAP' || resolvedBidStrategy === 'LOWEST_COST_WITH_BID_CAP') && !(Number(resolvedBidAmount) > 0)) {
         return json({ error: 'Bid Amount is required for this bid strategy.' }, 400);
       }
-      const graphBody: Record<string, unknown> = { name, bid_strategy: resolvedBidStrategy, targeting: JSON.stringify(targeting) };
-      if (bid_amount) graphBody.bid_amount = Math.round(Number(bid_amount) * 100);
+      const graphBody: Record<string, unknown> = { name, targeting: JSON.stringify(targeting) };
+      if (!campaignLocksBidStrategy) {
+        graphBody.bid_strategy = resolvedBidStrategy;
+        if (bid_amount) graphBody.bid_amount = Math.round(Number(bid_amount) * 100);
+      }
       if (!campaignHasBudget) {
         if (budget_type === 'daily' && budget_amount) graphBody.daily_budget = Math.round(Number(budget_amount) * 100);
         if (budget_type === 'lifetime' && budget_amount) graphBody.lifetime_budget = Math.round(Number(budget_amount) * 100);
@@ -1050,8 +1106,8 @@ serve(async (req) => {
 
       const { data: updated, error } = await supabase.from('meta_ad_sets').update({
         name: name ?? adSet.name,
-        bid_strategy: resolvedBidStrategy,
-        bid_amount: bid_amount ?? adSet.bid_amount,
+        bid_strategy: campaignLocksBidStrategy ? null : resolvedBidStrategy,
+        bid_amount: campaignLocksBidStrategy ? null : (bid_amount ?? adSet.bid_amount),
         budget_type: campaignHasBudget ? null : (budget_type ?? adSet.budget_type),
         daily_budget: campaignHasBudget ? null : (budget_amount ?? adSet.daily_budget),
         targeting: { age_min, age_max, genders, locations, geo },
@@ -1138,6 +1194,55 @@ serve(async (req) => {
     // Ads
     // ---------------------------------------------------------------------
 
+
+    // ---- Lead forms (instant forms) — live on the Facebook Page, need a Page token ----
+    const leadPageToken = async (metaPageId: string) => {
+      const { data: pg } = await supabase.from('meta_pages').select('page_id, page_name, page_token_enc').eq('page_id', metaPageId).limit(1).maybeSingle();
+      if (!pg) throw new Error('This Facebook Page is not synced yet. Open Communication Center → Meta and sync Pages.');
+      return { token: pg.page_token_enc ? await decryptToken(pg.page_token_enc, encKey) : accessToken, name: pg.page_name };
+    };
+
+    if (action === 'lead_ads_readiness') {
+      const pageId = String(body.page_id || '');
+      if (!pageId) return json({ error: 'Choose a Facebook Page first' });
+      const result: Record<string, unknown> = { page_id: pageId, tos_accepted: null, missing_permissions: [] as string[], errors: [] as string[] };
+      try {
+        const perms = await graph('/me/permissions', accessToken);
+        const granted = new Set<string>(((perms?.data || []) as Array<{ permission: string; status: string }>).filter((p) => p.status === 'granted').map((p) => p.permission));
+        result.missing_permissions = ['pages_manage_ads', 'leads_retrieval', 'ads_management'].filter((n) => !granted.has(n));
+      } catch (e) { (result.errors as string[]).push(`Permissions: ${(e as Error).message}`); }
+      try {
+        const { token } = await leadPageToken(pageId);
+        const page = await graph(`/${pageId}`, token, { params: { fields: 'leadgen_tos_accepted,name' } });
+        result.tos_accepted = page?.leadgen_tos_accepted ?? null;
+        result.page_name = page?.name ?? null;
+      } catch (e) { (result.errors as string[]).push(`Page terms: ${(e as Error).message}`); }
+      return json(result);
+    }
+
+    if (action === 'list_lead_forms') {
+      const pageId = String(body.page_id || '');
+      if (!pageId) return json({ error: 'Choose a Facebook Page first' }, 400);
+      const { token } = await leadPageToken(pageId);
+      const res = await graph(`/${pageId}/leadgen_forms`, token, { params: { fields: 'id,name,status,leads_count,created_time', limit: '100' } });
+      const forms = ((res?.data || []) as Array<Record<string, unknown>>)
+        .filter((f) => f.status !== 'ARCHIVED' && f.status !== 'DELETED')
+        .map((f) => ({ id: String(f.id), external_id: String(f.id), name: String(f.name || 'Untitled form'), status: String(f.status || 'ACTIVE'), leads_count: Number(f.leads_count || 0), imported: true, created_at: String(f.created_time || ''), page_id: pageId }));
+      return json({ forms });
+    }
+
+    if (action === 'create_lead_form') {
+      const payload = (body.payload || body) as { page_id?: string; form?: LeadFormInput };
+      const pageId = String(payload.page_id || '');
+      if (!pageId) return json({ error: 'Choose a Facebook Page first' }, 400);
+      const input = (payload.form || {}) as LeadFormInput;
+      const problems = validateLeadForm(input);
+      if (problems.length) return json({ error: problems.join('. ') }, 400);
+      const { token } = await leadPageToken(pageId);
+      const created = await graph(`/${pageId}/leadgen_forms`, token, { method: 'POST', body: buildLeadFormPayload(input) });
+      return json({ success: true, form: { id: String(created.id), external_id: String(created.id), name: String(input.name).trim(), status: 'ACTIVE', leads_count: 0, imported: false, created_at: new Date().toISOString(), page_id: pageId } });
+    }
+
     if (action === 'ads_list') {
       const { ad_set_id } = body;
       let query = supabase.from('meta_ads').select('*, meta_ad_sets!inner(id, name)').order('updated_at', { ascending: false });
@@ -1175,20 +1280,31 @@ serve(async (req) => {
     }
 
     if (action === 'ads_create') {
-      const { ad_set_row_id, name, page_row_id, primary_text, headline, description, call_to_action, destination_url, media_url, instagram_actor_id } = body;
-      const { data: adSet } = await supabase.from('meta_ad_sets').select('meta_ad_set_id, campaign_id').eq('id', ad_set_row_id).single();
+      const { ad_set_row_id, name, page_row_id, primary_text, headline, description, call_to_action, destination_url, media_url, instagram_actor_id, lead_form_id } = body;
+      const { data: adSet } = await supabase.from('meta_ad_sets').select('meta_ad_set_id, campaign_id, optimization_goal, page_id').eq('id', ad_set_row_id).single();
       if (!adSet) return json({ error: 'Ad set not found' }, 404);
       const { data: campaign } = await supabase.from('meta_campaigns').select('ad_account_id').eq('id', adSet.campaign_id).single();
       const { data: acc } = await supabase.from('meta_ad_accounts').select('ad_account_id').eq('id', campaign?.ad_account_id).single();
       if (!acc) return json({ error: 'Ad account not found' }, 404);
       const { data: page } = await supabase.from('meta_pages').select('page_id').eq('id', page_row_id).maybeSingle();
 
+      const isLeadAd = isInstantFormGoal(adSet.optimization_goal);
       const adMedia = normalizeAdMedia(body.media, media_url);
-      const useDestination = body.use_destination !== false && !!destination_url;
-      const storySpec = buildStorySpec({
-        pageId: page?.page_id, instagramId: instagram_actor_id, media: adMedia,
-        primaryText: primary_text, headline, description, cta: call_to_action, destination: destination_url, useDestination,
-      });
+      const useDestination = !isLeadAd && body.use_destination !== false && !!destination_url;
+      let storySpec: Record<string, unknown>;
+      if (isLeadAd) {
+        // Lead-form ads must use the ad set's promoted Page and carry the form on the button (images only).
+        if (adMedia?.kind === 'video') return json({ error: 'Lead form ads support an image for now. Remove the video or pick another ad set.' }, 400);
+        try {
+          storySpec = buildLeadStorySpec({ name, primary_text, headline, description, call_to_action, media_url: adMedia?.url ?? media_url }, adSet.page_id || page?.page_id, lead_form_id);
+        } catch (e) { return json({ error: (e as Error).message }, 400); }
+        if (instagram_actor_id) storySpec.instagram_actor_id = instagram_actor_id;
+      } else {
+        storySpec = buildStorySpec({
+          pageId: page?.page_id, instagramId: instagram_actor_id, media: adMedia,
+          primaryText: primary_text, headline, description, cta: call_to_action, destination: destination_url, useDestination,
+        });
+      }
 
       const creative = await graph(`/act_${acc.ad_account_id}/adcreatives`, accessToken, {
         method: 'POST',
@@ -1205,8 +1321,8 @@ serve(async (req) => {
       const { data: row, error } = await supabase.from('meta_ads').insert({
         ad_set_id: ad_set_row_id, meta_ad_id: createdAd.id, name, status: 'paused',
         primary_text, headline: headline || null, description: description || null,
-        call_to_action: call_to_action || null, destination_url: destination_url || null,
-        creative: { media_url: adMedia?.url ?? null, media: adMedia, ai_media: !!body.ai_media, use_destination: useDestination, page_row_id, instagram_actor_id: instagram_actor_id || null }, creative_type: adMedia?.kind === 'video' ? 'video' : adMedia ? 'image_link' : 'link',
+        call_to_action: call_to_action || null, destination_url: isLeadAd ? null : (destination_url || null),
+        creative: { media_url: adMedia?.url ?? null, media: adMedia, ai_media: !!body.ai_media, use_destination: useDestination, page_row_id, instagram_actor_id: instagram_actor_id || null, lead_form_id: isLeadAd ? lead_form_id : null }, creative_type: isLeadAd ? 'lead_form' : (adMedia?.kind === 'video' ? 'video' : adMedia ? 'image_link' : 'link'),
         last_synced_at: new Date().toISOString(),
       }).select().single();
       if (error) return json({ error: error.message }, 500);
@@ -1214,8 +1330,8 @@ serve(async (req) => {
     }
 
     if (action === 'ads_update') {
-      const { ad_id, name, page_row_id, primary_text, headline, description, call_to_action, destination_url, media_url, instagram_actor_id } = body;
-      const { data: ad } = await supabase.from('meta_ads').select('*, meta_ad_sets!inner(meta_ad_set_id, campaign_id)').eq('id', ad_id).single();
+      const { ad_id, name, page_row_id, primary_text, headline, description, call_to_action, destination_url, media_url, instagram_actor_id, lead_form_id } = body;
+      const { data: ad } = await supabase.from('meta_ads').select('*, meta_ad_sets!inner(meta_ad_set_id, campaign_id, optimization_goal, page_id)').eq('id', ad_id).single();
       if (!ad) return json({ error: 'Ad not found' }, 404);
       const adSet = (ad as any).meta_ad_sets;
       const { data: campaign } = await supabase.from('meta_campaigns').select('ad_account_id').eq('id', adSet.campaign_id).single();
@@ -1224,17 +1340,31 @@ serve(async (req) => {
       const resolvedPageRowId = page_row_id || (ad.creative as any)?.page_row_id;
       const { data: page } = await supabase.from('meta_pages').select('page_id').eq('id', resolvedPageRowId).maybeSingle();
 
+      const isLeadAd = isInstantFormGoal(adSet.optimization_goal);
       const prevCreative = (ad.creative as any) || {};
+      const resolvedLeadFormId = lead_form_id || prevCreative.lead_form_id || null;
       const adMedia = body.media !== undefined || media_url !== undefined
         ? normalizeAdMedia(body.media, media_url)
         : normalizeAdMedia(prevCreative.media, prevCreative.media_url);
-      const useDestination = body.use_destination !== undefined ? body.use_destination !== false && !!(destination_url ?? ad.destination_url) : prevCreative.use_destination !== false && !!(destination_url ?? ad.destination_url);
+      const useDestination = !isLeadAd && (body.use_destination !== undefined ? body.use_destination !== false && !!(destination_url ?? ad.destination_url) : prevCreative.use_destination !== false && !!(destination_url ?? ad.destination_url));
       const resolvedInstagramId = instagram_actor_id ?? prevCreative.instagram_actor_id;
-      const storySpec = buildStorySpec({
-        pageId: page?.page_id, instagramId: resolvedInstagramId, media: adMedia,
-        primaryText: primary_text ?? ad.primary_text, headline: headline ?? ad.headline, description: description ?? ad.description,
-        cta: call_to_action ?? ad.call_to_action, destination: destination_url ?? ad.destination_url, useDestination,
-      });
+      let storySpec: Record<string, unknown>;
+      if (isLeadAd) {
+        if (adMedia?.kind === 'video') return json({ error: 'Lead form ads support an image for now. Remove the video or pick another ad set.' }, 400);
+        try {
+          storySpec = buildLeadStorySpec({
+            name: name || ad.name, primary_text: primary_text ?? ad.primary_text, headline: headline ?? ad.headline,
+            description: description ?? ad.description, call_to_action: call_to_action ?? ad.call_to_action, media_url: adMedia?.url ?? media_url,
+          }, adSet.page_id || page?.page_id, resolvedLeadFormId);
+        } catch (e) { return json({ error: (e as Error).message }, 400); }
+        if (resolvedInstagramId) storySpec.instagram_actor_id = resolvedInstagramId;
+      } else {
+        storySpec = buildStorySpec({
+          pageId: page?.page_id, instagramId: resolvedInstagramId, media: adMedia,
+          primaryText: primary_text ?? ad.primary_text, headline: headline ?? ad.headline, description: description ?? ad.description,
+          cta: call_to_action ?? ad.call_to_action, destination: destination_url ?? ad.destination_url, useDestination,
+        });
+      }
 
       const creative = await graph(`/act_${acc.ad_account_id}/adcreatives`, accessToken, {
         method: 'POST',
@@ -1252,8 +1382,8 @@ serve(async (req) => {
         description: description ?? ad.description,
         call_to_action: call_to_action ?? ad.call_to_action,
         destination_url: destination_url ?? ad.destination_url,
-        creative: { media_url: adMedia?.url ?? null, media: adMedia, ai_media: body.ai_media ?? prevCreative.ai_media ?? false, use_destination: useDestination, page_row_id: resolvedPageRowId, instagram_actor_id: resolvedInstagramId || null },
-        creative_type: adMedia?.kind === 'video' ? 'video' : adMedia ? 'image_link' : 'link',
+        creative: { media_url: adMedia?.url ?? null, media: adMedia, ai_media: body.ai_media ?? prevCreative.ai_media ?? false, use_destination: useDestination, page_row_id: resolvedPageRowId, instagram_actor_id: resolvedInstagramId || null, lead_form_id: isLeadAd ? resolvedLeadFormId : null },
+        creative_type: isLeadAd ? 'lead_form' : (adMedia?.kind === 'video' ? 'video' : adMedia ? 'image_link' : 'link'),
         last_synced_at: new Date().toISOString(),
       }).eq('id', ad_id).select().single();
       if (error) return json({ error: error.message }, 500);
@@ -1477,7 +1607,9 @@ serve(async (req) => {
     const metaSubcode = (error as { metaSubcode?: unknown })?.metaSubcode;
     const isMeta = metaSubcode !== undefined;
     const raw = error instanceof Error ? error.message : 'Unknown error';
-    const message = isMeta && /permission/i.test(raw)
+    const message = isMeta && metaSubcode === META_SUBCODE_MISSING_PROMOTED_OBJECT
+      ? 'This ad set was created without the pixel or Page its campaign type needs (e.g. a Leads or Sales campaign with no pixel), and Meta won\'t accept ads in it. Meta doesn\'t allow adding that later — create a new ad set for this campaign (pick your pixel there), then add the ad to the new ad set.'
+      : isMeta && /permission/i.test(raw)
       ? 'Meta denied permission for this action. Make sure your Facebook account has an admin or advertiser role on this ad account/business and that all requested permissions were granted, then reconnect Meta.'
       : raw;
     // Meta domain errors (billing, permissions, terms) are expected config issues, not crashes:

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeMetaApi, invokeMetaApiRaw } from "@/lib/metaInvoke";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -49,20 +49,11 @@ export default function MetaCampaignsPanel({ adAccountRowId }: { adAccountRowId:
   const [form, setForm] = useState(initialForm);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
-  const invoke = async (action: string, extra: Record<string, unknown> = {}) => {
-    const { data, error } = await supabase.functions.invoke("meta-api", { body: { action, ...extra } });
-    if (error) throw error;
-    if (data?.error) throw new Error(data.error);
-    return data;
-  };
+  const invoke = invokeMetaApi;
 
   // Delete needs to inspect a refused-but-not-an-error response (meta_delete_failed)
   // before deciding whether to prompt the user, so it can't use the throwing `invoke`.
-  const invokeRaw = async (action: string, extra: Record<string, unknown> = {}) => {
-    const { data, error } = await supabase.functions.invoke("meta-api", { body: { action, ...extra } });
-    if (error) throw error;
-    return data;
-  };
+  const invokeRaw = invokeMetaApiRaw;
 
   const { data: allCampaigns = [], isLoading } = useQuery({
     queryKey: ["meta-campaigns-list"],

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeMetaApiRaw } from "@/lib/metaInvoke";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,23 +43,31 @@ export function LocationPicker({ value, onChange, fromLegacy, legacyText }: Prop
     timer.current = window.setTimeout(async () => {
       setSearching(true);
       setSearchError("");
-      const { data, error } = await supabase.functions.invoke("meta-api", {
-        body: { action: "search_geo", q, types: ["region", "city"] },
-      });
-      setSearching(false);
-      if (error || data?.error) {
-        setSearchError(data?.error || error?.message || "Search failed");
+      try {
+        const data = await invokeMetaApiRaw<{ results?: SearchHit[] }>("search_geo", { q, types: ["region", "city"] });
+        setHits((data?.results || []).slice(0, 15));
+      } catch (e) {
+        setSearchError(e instanceof Error ? e.message : "Search failed");
         setHits([]);
-        return;
+      } finally {
+        setSearching(false);
       }
-      setHits(((data?.results as SearchHit[]) || []).slice(0, 15));
     }, 400);
     return () => { if (timer.current) window.clearTimeout(timer.current); };
   }, [query]);
 
+  // Meta rejects a country together with a region/city inside that same
+  // country ("Remove a conflicting location to continue"), so a more
+  // specific pick always drops its redundant parent country, and picking a
+  // country drops any regions/cities already selected under it.
   const addCountry = (code: string) => {
     if (!code || value.countries.includes(code)) return;
-    onChange({ ...value, countries: [...value.countries, code] });
+    onChange({
+      ...value,
+      countries: [...value.countries, code],
+      regions: value.regions.filter((r) => r.country?.toUpperCase() !== code),
+      cities: value.cities.filter((c) => c.country?.toUpperCase() !== code),
+    });
     setCountryPick("");
   };
 
@@ -67,10 +75,18 @@ export function LocationPicker({ value, onChange, fromLegacy, legacyText }: Prop
     if (h.type === "country" && h.country_code) { addCountry(h.country_code.toUpperCase()); }
     else if (h.type === "region") {
       if (value.regions.some((r) => r.key === h.key)) return;
-      onChange({ ...value, regions: [...value.regions, { key: h.key, name: h.name, country: h.country_code }] });
+      onChange({
+        ...value,
+        countries: value.countries.filter((c) => c !== h.country_code?.toUpperCase()),
+        regions: [...value.regions, { key: h.key, name: h.name, country: h.country_code }],
+      });
     } else if (h.type === "city") {
       if (value.cities.some((c) => c.key === h.key)) return;
-      onChange({ ...value, cities: [...value.cities, { key: h.key, name: h.name, country: h.country_code, region: h.region, radius: 25, distance_unit: "kilometer" }] });
+      onChange({
+        ...value,
+        countries: value.countries.filter((c) => c !== h.country_code?.toUpperCase()),
+        cities: [...value.cities, { key: h.key, name: h.name, country: h.country_code, region: h.region, radius: 25, distance_unit: "kilometer" }],
+      });
     }
     setQuery("");
     setHits([]);
