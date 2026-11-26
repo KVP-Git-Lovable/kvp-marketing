@@ -14098,6 +14098,42 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_connector_audiences: {
+        Row: {
+          account_id: string
+          created_at: string
+          created_by: string
+          duplicate_count: number
+          external_id: string
+          id: string
+          invalid_count: number
+          name: string
+          row_count: number
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          created_by: string
+          duplicate_count?: number
+          external_id: string
+          id?: string
+          invalid_count?: number
+          name: string
+          row_count?: number
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          created_by?: string
+          duplicate_count?: number
+          external_id?: string
+          id?: string
+          invalid_count?: number
+          name?: string
+          row_count?: number
+        }
+        Relationships: []
+      }
       meta_connector_campaigns: {
         Row: {
           account_id: string
@@ -14139,6 +14175,47 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      meta_connector_leads: {
+        Row: {
+          ad_id: string | null
+          campaign_id: string
+          created_time: string | null
+          fields: Json
+          form_id: string
+          id: string
+          lead_id: string
+          synced_at: string
+        }
+        Insert: {
+          ad_id?: string | null
+          campaign_id: string
+          created_time?: string | null
+          fields?: Json
+          form_id: string
+          id?: string
+          lead_id: string
+          synced_at?: string
+        }
+        Update: {
+          ad_id?: string | null
+          campaign_id?: string
+          created_time?: string | null
+          fields?: Json
+          form_id?: string
+          id?: string
+          lead_id?: string
+          synced_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_connector_leads_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "meta_connector_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       meta_connector_settings: {
         Row: {
