@@ -27,6 +27,8 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   pageId: string;
   onCreated: (form: LeadFormRow) => void;
+  /** Creates the form somewhere other than meta-api (the Meta Ads Connector uses its own function). */
+  createForm?: (form: ReturnType<typeof draftToLeadForm>) => Promise<LeadFormRow>;
 }
 
 let qid = 10;
@@ -36,7 +38,7 @@ const newQuestion = (type = "CUSTOM"): LeadQuestionDraft => ({ id: `q${qid++}`, 
  * Builds a Meta instant form (POST /{page-id}/leadgen_forms) through meta-api `create_lead_form`.
  * Field names follow Meta's Lead Forms guide; the form cannot be edited on Meta afterwards.
  */
-export function LeadFormDialog({ open, onOpenChange, pageId, onCreated }: Props) {
+export function LeadFormDialog({ open, onOpenChange, pageId, onCreated, createForm }: Props) {
   const [d, setD] = useState<LeadFormDraft>(emptyLeadFormDraft);
   const [saving, setSaving] = useState(false);
   const [showJson, setShowJson] = useState(false);
@@ -54,6 +56,18 @@ export function LeadFormDialog({ open, onOpenChange, pageId, onCreated }: Props)
   const create = async () => {
     if (errors.length) { toast({ title: "Please fix the form", description: errors[0], variant: "destructive" }); return; }
     setSaving(true);
+    if (createForm) {
+      try {
+        const form = await createForm(draftToLeadForm(d));
+        toast({ title: "Lead form created on Meta", description: `Form id ${form.external_id}` });
+        onCreated(form);
+        setD(emptyLeadFormDraft());
+        onOpenChange(false);
+      } catch (e) {
+        toast({ title: "Meta did not create the form", description: e instanceof Error ? e.message : "Something went wrong", variant: "destructive" });
+      } finally { setSaving(false); }
+      return;
+    }
     const { data, error } = await supabase.functions.invoke("meta-api", { body: { action: "create_lead_form", payload: { page_id: pageId, form: draftToLeadForm(d) } } });
     setSaving(false);
     if (error || data?.error) { toast({ title: "Meta did not create the form", description: await readMetaApiError(error, data), variant: "destructive" }); return; }
