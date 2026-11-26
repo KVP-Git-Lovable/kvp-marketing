@@ -25,6 +25,7 @@ const schema = z.discriminatedUnion('action',[
  z.object({action:z.literal('resume'),id:z.string().uuid()}),
  z.object({action:z.literal('status'),id:z.string().uuid(),status:z.enum(['ACTIVE','PAUSED']),confirmed:z.literal(true)}),
  z.object({action:z.literal('refresh'),id:z.string().uuid()}),
+ z.object({action:z.literal('details'),id:z.string().uuid()}),
 ]);
 class ProviderError extends Error { constructor(public status:number, public details:unknown) { super(JSON.stringify(details)); } }
 async function graph(path:string, body?:Record<string,unknown>, params:Record<string,string>={}) {
@@ -39,6 +40,11 @@ async function pages(path:string, fields:string) {
  const out:any[]=[]; let after:string|undefined;
  for(let i=0;i<10;i++) { const r=await graph(path,undefined,{fields,limit:'100',...(after?{after}:{})});out.push(...(r.data||[]));after=r.paging?.cursors?.after;if(!r.paging?.next || !after) return out; }
  throw new Error('Asset list is too large. Narrow the connected assets in Meta before continuing.');
+}
+function reportDate(timezone:string, daysAgo=0) {
+ const parts=new Intl.DateTimeFormat('en-US',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+ const part=(type:string)=>Number(parts.find(p=>p.type===type)?.value);
+ return new Date(Date.UTC(part('year'),part('month')-1,part('day')-daysAgo)).toISOString().slice(0,10);
 }
 Deno.serve(async(req)=>{
  const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
@@ -70,6 +76,20 @@ Deno.serve(async(req)=>{
  }
  const id='id'in b?b.id:'';const result=await db.from('meta_connector_campaigns').select('*').eq('id',id).maybeSingle();if(result.error)throw result.error;const row=result.data;if(!row)return json({error:'Campaign draft not found'},404);
  if(row.account_id!==settings.account_id||row.page_id!==settings.page_id)throw new Error('This campaign belongs to a different connector setup.');
+ if(b.action==='details') {
+ const account=await graph(settings.account_id,undefined,{fields:'id,name,currency,timezone_name'});
+ if(!row.remote.campaign_id)return json({account,campaign:null,adsets:[],ads:[],insights:null,adsetInsights:[],time_range:null});
+ const time_range={since:reportDate(account.timezone_name,29),until:reportDate(account.timezone_name)};
+ const insightFields='spend,impressions,reach,clicks,inline_link_clicks,actions,cost_per_action_type,date_start,date_stop';
+ const [campaign,adsets,ads,insights,adsetInsights]=await Promise.all([
+  graph(row.remote.campaign_id,undefined,{fields:'id,name,objective,status,effective_status,buying_type,special_ad_categories,created_time,updated_time,issues_info,advantage_state_info'}),
+  pages(`${row.remote.campaign_id}/adsets`,'id,campaign_id,name,status,effective_status,issues_info,start_time,end_time,daily_budget,lifetime_budget,bid_strategy,billing_event,optimization_goal,promoted_object,targeting,attribution_spec,learning_stage_info'),
+  pages(`${row.remote.campaign_id}/ads`,'id,name,adset_id,status,effective_status,issues_info,ad_review_feedback,creative{id,name,thumbnail_url,image_url,object_story_spec,instagram_user_id}'),
+  graph(`${row.remote.campaign_id}/insights`,undefined,{fields:insightFields,time_range:JSON.stringify(time_range)}),
+  graph(`${row.remote.campaign_id}/insights`,undefined,{fields:`adset_id,adset_name,${insightFields}`,level:'adset',limit:'100',time_range:JSON.stringify(time_range)}),
+ ]);
+ return json({account,campaign,adsets,ads,insights:insights.data?.[0]||null,adsetInsights:adsetInsights.data||[],time_range});
+ }
  if(b.action==='refresh') { if(!row.remote.ad_id)return json({row}); const ad=await graph(row.remote.ad_id,undefined,{fields:'id,status,effective_status,issues_info,ad_review_feedback'});return json({row,ad}); }
  if(b.action==='status') {
  if(!row.remote.ad_id||!row.remote.adset_id||!row.remote.campaign_id)throw new Error('Complete the paused campaign before activation.');

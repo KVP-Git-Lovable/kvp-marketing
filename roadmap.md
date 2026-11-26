@@ -4,6 +4,7 @@
 - [x] Add connector-only subsection after Calendar with named new campaigns and website destinations.
 - [x] Implement authorized uploads, paused creation, explicit activation and campaign status.
 - [x] Verify connected account, Instagram identity and desktop/mobile form with draft recovery; no live ad creation or activation tested.
+- [x] Open connector campaigns inside the app with live campaign, ad set, ad and 30-day performance details.
 
 - [ ] 1. Get a structure-only export of the "Application test - Stage" database (waiting on the user)
 - [ ] 2. Clean the export for this project
