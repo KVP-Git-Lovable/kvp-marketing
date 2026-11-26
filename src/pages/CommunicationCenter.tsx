@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, MessageCircle, Workflow, Facebook, Link2, CalendarDays } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Workflow, Facebook, Link2, CalendarDays, Megaphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Layout } from '@/components/Layout';
 import { cn } from '@/lib/utils';
@@ -10,6 +10,7 @@ import JourneyBuilderTab from './communication/JourneyBuilderTab';
 import MetaTab from './communication/MetaTab';
 import MetaConnectionTab from './communication/MetaConnectionTab';
 import CommunicationCalendar from './communication/CommunicationCalendar';
+import MetaAdsConnectorTab from './communication/MetaAdsConnectorTab';
 import whatsappLogo from '@/assets/whatsapp-logo.png';
 import facebookLogo from '@/assets/facebook-logo.png';
 import instagramLogo from '@/assets/instagram-logo.png';
@@ -20,6 +21,7 @@ const TABS = [
   { id: 'meta', label: 'Meta', icon: Facebook, prefix: 'comm_meta_', Component: MetaTab },
   { id: 'meta-connection', label: 'Meta Connection', icon: Link2, prefix: 'comm_metaconn_', Component: MetaConnectionTab },
   { id: 'calendar', label: 'Calendar', icon: CalendarDays, prefix: 'comm_journey_', Component: CommunicationCalendar },
+  { id: 'meta-ads-connector', label: 'Meta Ads Connector', icon: Megaphone, prefix: 'comm_meta_connector_', Component: MetaAdsConnectorTab },
 ] as const;
 
 export default function CommunicationCenter() {
@@ -28,7 +30,7 @@ export default function CommunicationCenter() {
   const { permissions, hasModuleAccess } = useProfilePermissions();
   const noProfileAssigned = permissions.length === 0;
 
-  const visibleTabs = TABS.filter((t) => noProfileAssigned || hasModuleAccess(t.prefix));
+  const visibleTabs = TABS.filter((t) => t.id === 'meta-ads-connector' ? hasModuleAccess(t.prefix) : noProfileAssigned || hasModuleAccess(t.prefix));
   const tabParam = searchParams.get('tab');
   const [activeTab, setActiveTabState] = useState<string>(
     (tabParam && visibleTabs.some((t) => t.id === tabParam)) ? tabParam : (visibleTabs[0]?.id || TABS[0].id)
@@ -47,7 +49,7 @@ export default function CommunicationCenter() {
       setActiveTabState(tabParam);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabParam]);
+  }, [tabParam, permissions]);
 
   return (
     <Layout>

@@ -1,5 +1,10 @@
 # Roadmap: get the remix working on its own database
 
+## Meta Ads Connector
+- [x] Add connector-only subsection after Calendar with named new campaigns and website destinations.
+- [x] Implement authorized uploads, paused creation, explicit activation and campaign status.
+- [x] Verify connected account, Instagram identity and desktop/mobile form with draft recovery; no live ad creation or activation tested.
+
 - [ ] 1. Get a structure-only export of the "Application test - Stage" database (waiting on the user)
 - [ ] 2. Clean the export for this project
 - [ ] 3. Load it into this project's Lovable Cloud database

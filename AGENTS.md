@@ -1,4 +1,7 @@
 # Architecture rules
+- Meta Ads Connector uses its own authorized gateway function and resumable campaign records; why: connector credentials and ads must stay separate from existing Meta OAuth and Journeys.
+- Connector campaigns are prepared paused and activated only through a separate confirmation; why: creating a draft must not authorize advertising spend.
+- Connector form drafts persist in user-scoped IndexedDB without expiration; why: uploads and preparation failures must remain retryable without losing input.
 - Communication UI guards unsupported saved-list categories (institutional, distributor and event are all supported) and reads structured Meta terms errors without accepting third-party terms automatically.
 - Retailer card insights share `useRetailerInsights` and the existing `retailer-visit-insight` function instead of querying the Churn Detector, so card surfaces use identical Overview/Payments eligibility and narration.
 - AI Pitch product imagery is resolved separately in the client by exact product/variant ID; optional image failures never alter recommendations or order autofill.

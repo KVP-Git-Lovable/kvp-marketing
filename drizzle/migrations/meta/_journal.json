@@ -15,6 +15,20 @@
       "when": 1793871410743,
       "tag": "0001_noop_after_missing_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795690062117,
+      "tag": "0002_meta_connector_campaigns",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795690447234,
+      "tag": "0003_meta_connector_selected_assets",
+      "breakpoints": true
     }
   ]
 }

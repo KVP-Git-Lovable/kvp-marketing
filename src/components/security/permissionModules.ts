@@ -686,6 +686,13 @@ export const PERMISSION_MODULES: PermissionModule[] = [
           { name: 'comm_metaconn_manage', label: 'Connect / Disconnect Meta Account' },
         ]
       },
+      {
+        name: 'comm_meta_connector',
+        label: 'Meta Ads Connector',
+        subFeatures: [
+          { name: 'comm_meta_connector_campaigns', label: 'Connector Campaigns (Create / Activate)' },
+        ]
+      },
     ]
   },
 ];

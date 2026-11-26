@@ -14098,6 +14098,66 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_connector_campaigns: {
+        Row: {
+          account_id: string
+          created_at: string
+          created_by: string
+          draft: Json
+          id: string
+          last_error: string | null
+          name: string
+          page_id: string
+          remote: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          created_by: string
+          draft?: Json
+          id: string
+          last_error?: string | null
+          name: string
+          page_id: string
+          remote?: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          created_by?: string
+          draft?: Json
+          id?: string
+          last_error?: string | null
+          name?: string
+          page_id?: string
+          remote?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      meta_connector_settings: {
+        Row: {
+          account_id: string
+          page_id: string
+          singleton: boolean
+        }
+        Insert: {
+          account_id: string
+          page_id: string
+          singleton?: boolean
+        }
+        Update: {
+          account_id?: string
+          page_id?: string
+          singleton?: boolean
+        }
+        Relationships: []
+      }
       meta_custom_audiences: {
         Row: {
           ad_account_id: string
