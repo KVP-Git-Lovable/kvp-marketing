@@ -137,3 +137,6 @@ verify_jwt = false
 
 [functions.whatsapp-inbound]
 verify_jwt = false
+
+[functions.meta-agent]
+verify_jwt = true

@@ -19,3 +19,37 @@ export function creativeLink(objective: ConnectorObjective, cta: string, website
   if (!website) throw new Error('Enter the website URL.');
   return { link: website, call_to_action: { type: cta, value: { link: website } } };
 }
+
+export interface TargetingInput {
+  countries: string[]; platforms: string[];
+  age_min?: number; age_max?: number; genders?: number[]; regions?: Array<{ key: string; name: string }>;
+}
+/** Ad set targeting. Without the optional fields this is the original connector targeting (18-65, countries). */
+export function buildTargeting(d: TargetingInput, audienceExternalId?: string) {
+  return {
+    ...(audienceExternalId ? { custom_audiences: [{ id: audienceExternalId }] } : {}),
+    // Meta rejects a country together with a region inside it, so regions replace the country list.
+    geo_locations: d.regions?.length ? { regions: d.regions.map((r) => ({ key: r.key })) } : { countries: d.countries },
+    publisher_platforms: d.platforms,
+    facebook_positions: d.platforms.includes('facebook') ? ['feed'] : undefined,
+    instagram_positions: d.platforms.includes('instagram') ? ['stream'] : undefined,
+    age_min: d.age_min ?? 18, age_max: d.age_max ?? 65,
+    ...(d.genders?.length === 1 ? { genders: d.genders } : {}),
+    targeting_automation: { advantage_audience: 0 },
+  };
+}
+/** Daily budget, or a lifetime budget (which Meta only accepts with an end time). Amounts become minor units. */
+export function budgetFields(type: 'daily' | 'lifetime', amount: number): Record<string, number> {
+  const minor = Math.round(amount * 100);
+  return type === 'lifetime' ? { lifetime_budget: minor } : { daily_budget: minor };
+}
+/** Whether an approved budget change stays within the step, ceiling and cooldown. Returns a reason when refused. */
+export function budgetChangeProblem(current: number, next: number, type: 'daily' | 'lifetime', limits: { step: number; maxDaily: number; maxTotal: number; cooldownHours: number }, lastChangeAt?: string, now = Date.now()): string | null {
+  if (!Number.isFinite(next) || next <= 0) return 'Enter a budget greater than zero.';
+  if (next === current) return 'The budget is already at that amount.';
+  if (Math.abs(next - current) > current * limits.step + 0.005) return `A single change can move the budget by at most ${Math.round(limits.step * 100)}%.`;
+  const ceiling = type === 'lifetime' ? limits.maxTotal : limits.maxDaily;
+  if (next > current && next > ceiling) return `The agent limit for a ${type === 'lifetime' ? 'total' : 'daily'} budget is ₹${ceiling.toLocaleString('en-IN')}.`;
+  if (lastChangeAt && now - Date.parse(lastChangeAt) < limits.cooldownHours * 3600000) return `This budget was changed recently. Wait ${limits.cooldownHours} hours between changes.`;
+  return null;
+}

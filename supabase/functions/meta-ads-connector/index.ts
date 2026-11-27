@@ -1,7 +1,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3';
-import { adsetGoal, campaignPayload, creativeLink, LEAD_CTAS, TRAFFIC_CTAS } from './rules.ts';
+import { adsetGoal, budgetChangeProblem, budgetFields, buildTargeting, campaignPayload, creativeLink, LEAD_CTAS, TRAFFIC_CTAS } from './rules.ts';
+import { AGENT_BUDGET_COOLDOWN_HOURS, AGENT_MAX_BUDGET_STEP, AGENT_MAX_DAILY_BUDGET, AGENT_MAX_TOTAL_BUDGET } from '../_shared/meta-agent-limits.ts';
 import { AUDIENCE_MAX_ROWS, AUDIENCE_SCHEMA, prepareAudience } from './audience.ts';
 import { leadRows, type MetaLead } from './leads.ts';
 import { buildLeadFormPayload, validateLeadForm, type LeadFormInput } from '../_shared/meta-leadforms.ts';
@@ -13,6 +14,10 @@ const draftSchema = z.object({
   objective: z.enum(['traffic','leads']).default('traffic'), lead_form_id: numeric.optional(), audience_id: z.string().uuid().optional(),
   text: z.string().trim().min(1).max(2000), headline: z.string().trim().min(1).max(255), description: z.string().max(255).default(''),
   cta: z.enum([...TRAFFIC_CTAS, 'GET_QUOTE', 'APPLY_NOW', 'SUBSCRIBE', 'DOWNLOAD']),
+  budget_type: z.enum(['daily','lifetime']).default('daily'),
+  age_min: z.number().int().min(18).max(65).optional(), age_max: z.number().int().min(18).max(65).optional(),
+  genders: z.array(z.union([z.literal(1), z.literal(2)])).max(2).optional(),
+  regions: z.array(z.object({ key: numeric, name: z.string().min(1).max(120) })).max(10).optional(),
   budget: z.number().positive().max(1000000), countries: z.array(z.enum(['IN','US','GB','AU','CA','AE'])).min(1).max(6),
   platforms: z.array(z.enum(['facebook','instagram'])).min(1).max(2),
   categories: z.array(z.enum(['CREDIT','EMPLOYMENT','HOUSING','ISSUES_ELECTIONS_POLITICS'])), declaration_confirmed: z.literal(true),
@@ -23,6 +28,9 @@ const draftSchema = z.object({
   if (d.objective === 'leads' && !d.lead_form_id) c.addIssue({code:'custom',message:'Choose or create a lead form.'});
   if (!(d.objective === 'leads' ? LEAD_CTAS : TRAFFIC_CTAS).some(v => v === d.cta)) c.addIssue({code:'custom',message:'This button is not available for the chosen campaign type.'});
   if (d.platforms.includes('instagram') && !d.instagram_id) c.addIssue({code:'custom',message:'Select a verified Instagram identity.'});
+  if (d.budget_type === 'lifetime' && !d.end) c.addIssue({code:'custom',message:'A total (lifetime) budget needs an end date.'});
+  if ((d.age_min ?? 18) > (d.age_max ?? 65)) c.addIssue({code:'custom',message:'The minimum age is above the maximum age.'});
+  if (d.categories.length && ((d.age_min ?? 18) > 18 || (d.age_max ?? 65) < 65 || d.genders?.length === 1)) c.addIssue({code:'custom',message:'Meta does not allow age or gender targeting for this special ad category.'});
   if (d.media_kind === 'video' && !d.thumbnail_path) c.addIssue({code:'custom',message:'Video thumbnail is required.'});
   if (d.end && Date.parse(d.end) <= Math.max(Date.now(), d.start ? Date.parse(d.start) : 0)) c.addIssue({code:'custom',message:'End time must be after the start time and in the future.'});
 });
@@ -37,6 +45,9 @@ const schema = z.discriminatedUnion('action',[
  z.object({action:z.literal('create_lead_form'),form:z.record(z.unknown())}),
  z.object({action:z.literal('sync_leads'),id:z.string().uuid()}),
  z.object({action:z.literal('audiences')}),
+ z.object({action:z.literal('search_region'),query:z.string().trim().min(2).max(80),country:z.string().length(2).default('IN')}),
+ z.object({action:z.literal('insights'),id:z.string().uuid()}),
+ z.object({action:z.literal('set_budget'),id:z.string().uuid(),amount:z.number().positive().max(1000000),confirmed:z.literal(true)}),
  z.object({action:z.literal('create_audience'),name:z.string().trim().min(1).max(100),consent_confirmed:z.literal(true),
   rows:z.array(z.object({first_name:z.string().max(100).optional(),last_name:z.string().max(100).optional(),email:z.string().max(254).optional(),phone:z.string().max(40).optional()})).min(1).max(AUDIENCE_MAX_ROWS)}),
 ]);
@@ -69,8 +80,9 @@ function reportDate(timezone:string, daysAgo=0) {
  return new Date(Date.UTC(part('year'),part('month')-1,part('day')-daysAgo)).toISOString().slice(0,10);
 }
 Deno.serve(async(req)=>{
- const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
- if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders});
+ const build={'X-Connector-Build':'agent-2026-11-26','Access-Control-Expose-Headers':'x-connector-build'};
+ const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,...build,'Content-Type':'application/json'}});
+ if(req.method==='OPTIONS')return new Response('ok',{headers:{...corsHeaders,...build}});
  if(req.method!=='POST')return json({error:'POST required'},405);
  let rowId:string|undefined; let db:any;
  try {
@@ -78,7 +90,7 @@ Deno.serve(async(req)=>{
  db=createClient(url,key);const token=req.headers.get('Authorization')?.replace(/^Bearer /,'');if(!token)return json({error:'Sign in to continue'},401);
  const {data:{user},error}=await db.auth.getUser(token);if(error||!user)return json({error:'Sign in again to continue'},401);
  const parsed=schema.safeParse(await req.json());if(!parsed.success)return json({error:parsed.error.issues.map(i=>i.message).join(' ')},400);
- const b=parsed.data;const permission=['create','resume','create_lead_form','create_audience'].includes(b.action)?'can_create':b.action==='status'?'can_edit':'can_read';
+ const b=parsed.data;const permission=['create','resume','create_lead_form','create_audience'].includes(b.action)?'can_create':['status','set_budget'].includes(b.action)?'can_edit':'can_read';
  const access=await db.rpc('user_has_permission',{_user_id:user.id,_object:'comm_meta_connector_campaigns',_perm:permission});
  if(access.error||access.data!==true)return json({error:'You do not have permission for Meta Ads Connector.'},403);
  const settingsResult=await db.from('meta_connector_settings').select('*').eq('singleton',true).maybeSingle();
@@ -103,6 +115,10 @@ Deno.serve(async(req)=>{
   await probe('Custom audiences',async()=>{await graph(`${settings.account_id}/customaudiences`,undefined,{fields:'id',limit:'1'});return 'Readable';}),
  ];
  return json({checks});
+ }
+ if(b.action==='search_region') {
+ const r=await graph('search',undefined,{type:'adgeolocation',q:b.query,location_types:JSON.stringify(['region']),country_code:b.country,limit:'10'});
+ return json({regions:(r.data||[]).map((x:any)=>({key:String(x.key),name:String(x.name),country:String(x.country_name||x.country_code||'')}))});
  }
  if(b.action==='lead_forms') {
  const token=await pageAccessToken(settings.page_id);
@@ -170,6 +186,22 @@ Deno.serve(async(req)=>{
  if(rows.length){const up=await db.from('meta_connector_leads').upsert(rows,{onConflict:'campaign_id,lead_id'});if(up.error)throw up.error;}
  return json({synced:rows.length,truncated});
  }
+ if(b.action==='insights') {
+ if(!row.remote.campaign_id)return json({days:[]});
+ const account=await graph(settings.account_id,undefined,{fields:'timezone_name,currency'});
+ const r=await graph(`${row.remote.campaign_id}/insights`,undefined,{fields:'spend,impressions,clicks,inline_link_clicks,frequency,actions,date_start',time_increment:'1',time_range:JSON.stringify({since:reportDate(account.timezone_name,6),until:reportDate(account.timezone_name)}),limit:'50'});
+ return json({days:r.data||[],currency:account.currency});
+ }
+ if(b.action==='set_budget') {
+ if(!row.remote.adset_id)throw new Error('This campaign has no ad set yet.');
+ const type=row.draft.budget_type==='lifetime'?'lifetime':'daily';
+ const problem=budgetChangeProblem(Number(row.draft.budget),b.amount,type,{step:AGENT_MAX_BUDGET_STEP,maxDaily:AGENT_MAX_DAILY_BUDGET,maxTotal:AGENT_MAX_TOTAL_BUDGET,cooldownHours:AGENT_BUDGET_COOLDOWN_HOURS},row.remote.budget_changed_at);
+ if(problem)return json({error:problem},400);
+ await graph(row.remote.adset_id,budgetFields(type,b.amount));
+ const updated=await db.from('meta_connector_campaigns').update({draft:{...row.draft,budget:b.amount},remote:{...row.remote,budget_changed_at:new Date().toISOString()},updated_at:new Date().toISOString()}).eq('id',id).select().single();
+ if(updated.error)throw new Error(`Meta accepted the new budget but saving it here failed: ${updated.error.message}`);
+ return json({row:updated.data});
+ }
  if(b.action==='refresh') { if(!row.remote.ad_id)return json({row}); const ad=await graph(row.remote.ad_id,undefined,{fields:'id,status,effective_status,issues_info,ad_review_feedback'});return json({row,ad}); }
  if(b.action==='status') {
  if(!row.remote.ad_id||!row.remote.adset_id||!row.remote.campaign_id)throw new Error('Complete the paused campaign before activation.');
@@ -210,10 +242,10 @@ Deno.serve(async(req)=>{
  let audienceExternalId:string|undefined;
  if(d.audience_id){const a=await db.from('meta_connector_audiences').select('external_id').eq('id',d.audience_id).eq('account_id',settings.account_id).maybeSingle();if(a.error)throw a.error;if(!a.data)throw new Error('The selected customer list was not found.');audienceExternalId=a.data.external_id;}
  const goal=adsetGoal(d.objective,d.page_id);
- const targeting={...(audienceExternalId?{custom_audiences:[{id:audienceExternalId}]}:{}),geo_locations:{countries:d.countries},publisher_platforms:d.platforms,facebook_positions:d.platforms.includes('facebook')?['feed']:undefined,instagram_positions:d.platforms.includes('instagram')?['stream']:undefined,age_min:18,age_max:65,targeting_automation:{advantage_audience:0}};
+ const targeting=buildTargeting(d,audienceExternalId);
  // All offered currencies use two minor-unit digits; unsupported currencies must be handled explicitly.
  if(!['INR','USD','GBP','AUD','CAD','AED'].includes(account.currency))throw new Error('This account currency is not supported by the budget form.');
- await ensure('adset_id','adsets',{campaign_id:remote.campaign_id,daily_budget:Math.round(d.budget*100),bid_strategy:'LOWEST_COST_WITHOUT_CAP',billing_event:'IMPRESSIONS',...goal,targeting,status:'PAUSED',...(d.start?{start_time:d.start}:{}),...(d.end?{end_time:d.end}:{})});
+ await ensure('adset_id','adsets',{campaign_id:remote.campaign_id,...budgetFields(d.budget_type,d.budget),bid_strategy:'LOWEST_COST_WITHOUT_CAP',billing_event:'IMPRESSIONS',...goal,targeting,status:'PAUSED',...(d.start?{start_time:d.start}:{}),...(d.end?{end_time:d.end}:{})});
  const {link,call_to_action}=creativeLink(d.objective,d.cta,d.website,d.lead_form_id);
  const story=d.media_kind==='image'?{page_id:d.page_id,link_data:{link,message:d.text,name:d.headline,description:d.description,image_hash:remote.image_hash,call_to_action}}:{page_id:d.page_id,video_data:{video_id:remote.video_id,image_hash:remote.thumbnail_hash,message:d.text,title:d.headline,link_description:d.description,call_to_action}};
  await ensure('creative_id','adcreatives',{object_story_spec:story,...(d.platforms.includes('instagram')?{instagram_user_id:d.instagram_id}:{})});
