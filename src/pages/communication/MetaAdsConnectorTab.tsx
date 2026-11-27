@@ -120,7 +120,7 @@ export default function MetaAdsConnectorTab() {
  <MetaConnectorCampaignDetails row={details} onClose={()=>setDetails(null)}/>
  <MetaConnectorLeads row={leadsRow} onClose={()=>setLeadsRow(null)}/>
  <MetaConnectorCheck open={checking} onOpenChange={setChecking}/>
- <MetaAgentDialog open={agent} onOpenChange={setAgent} canCreate={canCreate}/>
+ <MetaAgentDialog open={agent} onOpenChange={setAgent} canCreate={canCreate} canEdit={canEdit}/>
  <MetaConnectorAudienceDialog open={lists} onOpenChange={setLists} canCreate={canCreate}/>
  <LeadFormDialog open={formDialog} onOpenChange={setFormDialog} pageId={form.page_id}
   createForm={async(next)=>(await metaConnectorRequest<{form:LeadFormRow}>({action:'create_lead_form',form:next})).form}
