@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3';
-import { adsetGoal, budgetChangeProblem, budgetFields, buildTargeting, campaignPayload, creativeLink, LEAD_CTAS, TRAFFIC_CTAS } from './rules.ts';
+import { adsetGoal, budgetChangeProblem, budgetFields, buildTargeting, campaignPayload, creativeLink, ctasFor, TRAFFIC_CTAS } from './rules.ts';
 import { AGENT_BUDGET_COOLDOWN_HOURS, AGENT_MAX_BUDGET_STEP, AGENT_MAX_DAILY_BUDGET, AGENT_MAX_TOTAL_BUDGET } from '../_shared/meta-agent-limits.ts';
 import { AUDIENCE_MAX_ROWS, AUDIENCE_SCHEMA, prepareAudience } from './audience.ts';
 import { leadRows, type MetaLead } from './leads.ts';
@@ -11,7 +11,7 @@ const numeric = z.string().regex(/^\d+$/);
 const draftSchema = z.object({
   name: z.string().trim().min(1).max(150), account_id: z.string().regex(/^act_\d+$/), page_id: numeric,
   instagram_id: numeric.optional(), website: z.string().url().refine(v => { const u = new URL(v); return u.protocol === 'https:' && !u.username && !u.password; }).optional(),
-  objective: z.enum(['traffic','leads']).default('traffic'), lead_form_id: numeric.optional(), audience_id: z.string().uuid().optional(),
+  objective: z.enum(['traffic','leads','awareness']).default('traffic'), lead_form_id: numeric.optional(), audience_id: z.string().uuid().optional(),
   text: z.string().trim().min(1).max(2000), headline: z.string().trim().min(1).max(255), description: z.string().max(255).default(''),
   cta: z.enum([...TRAFFIC_CTAS, 'GET_QUOTE', 'APPLY_NOW', 'SUBSCRIBE', 'DOWNLOAD']),
   budget_type: z.enum(['daily','lifetime']).default('daily'),
@@ -24,9 +24,9 @@ const draftSchema = z.object({
   start: z.string().datetime().optional(), end: z.string().datetime().optional(),
   media_path: z.string().min(1).max(500), media_kind: z.enum(['image','video']), thumbnail_path: z.string().max(500).optional(),
 }).superRefine((d, c) => {
-  if (d.objective === 'traffic' && !d.website) c.addIssue({code:'custom',message:'Enter the website URL.'});
+  if (d.objective !== 'leads' && !d.website) c.addIssue({code:'custom',message:'Enter the website URL.'});
   if (d.objective === 'leads' && !d.lead_form_id) c.addIssue({code:'custom',message:'Choose or create a lead form.'});
-  if (!(d.objective === 'leads' ? LEAD_CTAS : TRAFFIC_CTAS).some(v => v === d.cta)) c.addIssue({code:'custom',message:'This button is not available for the chosen campaign type.'});
+  if (!ctasFor(d.objective).includes(d.cta)) c.addIssue({code:'custom',message:'This button is not available for the chosen campaign type.'});
   if (d.platforms.includes('instagram') && !d.instagram_id) c.addIssue({code:'custom',message:'Select a verified Instagram identity.'});
   if (d.budget_type === 'lifetime' && !d.end) c.addIssue({code:'custom',message:'A total (lifetime) budget needs an end date.'});
   if ((d.age_min ?? 18) > (d.age_max ?? 65)) c.addIssue({code:'custom',message:'The minimum age is above the maximum age.'});
@@ -80,7 +80,7 @@ function reportDate(timezone:string, daysAgo=0) {
  return new Date(Date.UTC(part('year'),part('month')-1,part('day')-daysAgo)).toISOString().slice(0,10);
 }
 Deno.serve(async(req)=>{
- const build={'X-Connector-Build':'agent-2026-11-26','Access-Control-Expose-Headers':'x-connector-build'};
+ const build={'X-Connector-Build':'agent-2026-11-27','Access-Control-Expose-Headers':'x-connector-build'};
  const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...corsHeaders,...build,'Content-Type':'application/json'}});
  if(req.method==='OPTIONS')return new Response('ok',{headers:{...corsHeaders,...build}});
  if(req.method!=='POST')return json({error:'POST required'},405);

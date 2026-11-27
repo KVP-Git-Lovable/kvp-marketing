@@ -1,11 +1,13 @@
 // Recommendation rules. Code decides what is proposed; the model only explains it.
 import { AGENT_BUDGET_COOLDOWN_HOURS, AGENT_MAX_BUDGET_STEP, AGENT_MAX_DAILY_BUDGET } from '../_shared/meta-agent-limits.ts';
 
+export type Objective = 'traffic' | 'leads' | 'awareness';
+
 export interface DayStat { date: string; spend: number; impressions: number; clicks: number; frequency: number; results: number }
 
 export interface CampaignFacts {
   status: string;
-  objective: 'traffic' | 'leads';
+  objective: Objective;
   budget: number;
   budgetType: 'daily' | 'lifetime';
   days: DayStat[];
@@ -21,13 +23,14 @@ export interface Recommendation {
 }
 
 /** Rows from Meta insights (one per day) into the numbers the rules use. */
-export function toDayStats(rows: Array<Record<string, any>>, objective: 'traffic' | 'leads'): DayStat[] {
+export function toDayStats(rows: Array<Record<string, any>>, objective: Objective): DayStat[] {
   const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
   return rows.map((r) => {
     const actions: Array<{ action_type: string; value: string }> = r.actions || [];
     const action = (type: string) => num(actions.find((a) => a.action_type === type)?.value);
     // "lead" is Meta's total; the on-site type is used only when the total is absent (they overlap).
-    const results = objective === 'leads' ? action('lead') || action('onsite_conversion.lead_grouped') : num(r.inline_link_clicks);
+    // Awareness buys reach, so it has no countable "result".
+    const results = objective === 'awareness' ? 0 : objective === 'leads' ? action('lead') || action('onsite_conversion.lead_grouped') : num(r.inline_link_clicks);
     return { date: String(r.date_start || ''), spend: num(r.spend), impressions: num(r.impressions), clicks: num(r.clicks), frequency: num(r.frequency), results };
   }).sort((a, b) => a.date.localeCompare(b.date));
 }
@@ -38,10 +41,12 @@ const round = (n: number) => Math.round(n * 100) / 100;
 
 export function recommend(f: CampaignFacts, now = Date.now()): Recommendation[] {
   const spend = sum(f.days, 'spend'), results = sum(f.days, 'results'), impressions = sum(f.days, 'impressions');
-  const evidence = { days: f.days.length, spend: round(spend), results, impressions, cost_per_result: results ? round(spend / results) : 0 };
+  const aware = f.objective === 'awareness';
+  const evidence: Record<string, number> = { days: f.days.length, spend: round(spend), impressions, ...(aware ? {} : { results, cost_per_result: results ? round(spend / results) : 0 }) };
   const none = (reason: string): Recommendation[] => [{ kind: 'no_action', reason, evidence }];
   if (f.status !== 'ACTIVE') return none('The campaign is not active, so there is nothing to optimise.');
-  const target = f.targetCostPerResult && f.targetCostPerResult > 0 ? f.targetCostPerResult : undefined;
+  // A target cost per result never applies to awareness, so it can't trigger a pause or a budget change there.
+  const target = !aware && f.targetCostPerResult && f.targetCostPerResult > 0 ? f.targetCostPerResult : undefined;
   if (impressions < 1000 || spend < (target ?? 200)) return none('Not enough data yet to judge this campaign.');
 
   if (target && results === 0 && spend >= 2 * target) {
@@ -66,5 +71,7 @@ export function recommend(f: CampaignFacts, now = Date.now()): Recommendation[] 
       out.push({ kind: 'new_creative', reason: 'People are seeing the ad more often while clicking less. Try a new image or new copy.', evidence: { ...evidence, frequency_before: round(freqBefore), frequency_now: round(freqNow) } });
     }
   }
-  return out.length ? out : none(target ? 'Performance is within range. No change suggested.' : 'No change suggested. Enter a target cost per result for budget and pause advice.');
+  if (out.length) return out;
+  if (aware) return none('No change suggested. Awareness campaigns get creative advice only.');
+  return none(target ? 'Performance is within range. No change suggested.' : 'No change suggested. Enter a target cost per result for budget and pause advice.');
 }

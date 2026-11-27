@@ -1,10 +1,10 @@
 // The campaign plan the model proposes, and the checks code applies before anything reaches Meta.
-import { LEAD_CTAS, TRAFFIC_CTAS } from '../meta-ads-connector/rules.ts';
+import { ctasFor } from '../meta-ads-connector/rules.ts';
 import { AGENT_MAX_DAILY_BUDGET, AGENT_MAX_TOTAL_BUDGET } from '../_shared/meta-agent-limits.ts';
 
 export interface AgentPlan {
   name: string;
-  objective: 'traffic' | 'leads';
+  objective: 'traffic' | 'leads' | 'awareness';
   budget: number;
   budget_type: 'daily' | 'lifetime';
   start?: string;
@@ -50,7 +50,7 @@ export function mentionedAmounts(text: string): number[] {
 export function validatePlan(p: AgentPlan, ctx: PlanContext): string[] {
   const errors: string[] = [];
   if (!p.name?.trim()) errors.push('The campaign needs a name.');
-  if (p.objective !== 'traffic' && p.objective !== 'leads') errors.push('Only website traffic and lead generation campaigns are supported so far.');
+  if (!['traffic', 'leads', 'awareness'].includes(p.objective)) errors.push('Only awareness, website traffic and lead generation campaigns are supported so far.');
   if (p.budget_type !== 'daily' && p.budget_type !== 'lifetime') errors.push('Say whether the budget is per day or for the whole campaign.');
   if (!Number.isFinite(p.budget) || p.budget <= 0) errors.push('A budget is required.');
   else {
@@ -70,14 +70,13 @@ export function validatePlan(p: AgentPlan, ctx: PlanContext): string[] {
   if ((p.regions || []).some((r) => !ctx.regionKeys.includes(r.key))) errors.push('A region could not be verified with Meta. Name the state again.');
   if (!p.platforms?.length || p.platforms.some((x) => x !== 'facebook' && x !== 'instagram')) errors.push('Choose Facebook and/or Instagram.');
   if (p.platforms?.includes('instagram') && !ctx.instagramAvailable) errors.push('Instagram is not verified for this Page and ad account.');
-  if (p.objective === 'traffic') {
+  if (p.objective !== 'leads') {
     if (!/^https:\/\/[^\s]+\.[^\s]+/.test(p.website || '')) errors.push('A website address starting with https:// is required.');
   } else if (!p.lead_form_id || !ctx.leadFormIds.includes(p.lead_form_id)) errors.push('Choose or create a lead form first.');
   if (p.audience_id && !ctx.audienceIds.includes(p.audience_id)) errors.push('That customer list was not found.');
   if (!p.text?.trim() || !p.headline?.trim()) errors.push('The ad needs primary text and a headline.');
   if ((p.text || '').length > 2000 || (p.headline || '').length > 255 || (p.description || '').length > 255) errors.push('The ad copy is too long.');
-  const ctas: readonly string[] = p.objective === 'leads' ? LEAD_CTAS : TRAFFIC_CTAS;
-  if (!ctas.includes(p.cta)) errors.push('That button is not available for this campaign type.');
+  if (!ctasFor(p.objective).includes(p.cta)) errors.push('That button is not available for this campaign type.');
   return errors;
 }
 

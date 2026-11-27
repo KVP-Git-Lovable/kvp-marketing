@@ -1,11 +1,18 @@
-export type ConnectorObjective = 'traffic' | 'leads';
+export type ConnectorObjective = 'traffic' | 'leads' | 'awareness';
+const CAMPAIGN_OBJECTIVE: Record<ConnectorObjective, string> = { traffic: 'OUTCOME_TRAFFIC', leads: 'OUTCOME_LEADS', awareness: 'OUTCOME_AWARENESS' };
 export function campaignPayload(name: string, categories: string[], objective: ConnectorObjective = 'traffic') {
-  return { name: name.trim(), objective: objective === 'leads' ? 'OUTCOME_LEADS' : 'OUTCOME_TRAFFIC', special_ad_categories: categories, status: 'PAUSED', is_adset_budget_sharing_enabled: false };
+  return { name: name.trim(), objective: CAMPAIGN_OBJECTIVE[objective], special_ad_categories: categories, status: 'PAUSED', is_adset_budget_sharing_enabled: false };
 }
 export const TRAFFIC_CTAS = ['LEARN_MORE', 'SHOP_NOW', 'SIGN_UP', 'CONTACT_US', 'ORDER_NOW'] as const;
 export const LEAD_CTAS = ['SIGN_UP', 'LEARN_MORE', 'GET_QUOTE', 'APPLY_NOW', 'SUBSCRIBE', 'DOWNLOAD'] as const;
-/** Ad set settings that differ between a website-traffic campaign and an Instant Form lead campaign. */
+export const AWARENESS_CTAS = ['LEARN_MORE', 'SHOP_NOW', 'CONTACT_US'] as const;
+/** The buttons an ad may carry for a campaign type. */
+export function ctasFor(objective: ConnectorObjective): readonly string[] {
+  return objective === 'leads' ? LEAD_CTAS : objective === 'awareness' ? AWARENESS_CTAS : TRAFFIC_CTAS;
+}
+/** Ad set settings that differ between website-traffic, Instant Form lead and awareness (reach) campaigns. */
 export function adsetGoal(objective: ConnectorObjective, pageId: string) {
+  if (objective === 'awareness') return { optimization_goal: 'REACH', promoted_object: { page_id: pageId } };
   return objective === 'leads'
     ? { optimization_goal: 'LEAD_GENERATION', destination_type: 'ON_AD', promoted_object: { page_id: pageId } }
     : { optimization_goal: 'LINK_CLICKS', destination_type: 'WEBSITE' };

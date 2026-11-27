@@ -18,6 +18,7 @@ type Assets = {
 type ChatReply = { reply: string; options?: string[]; plan?: AgentPlan; assets?: Assets };
 
 const CATEGORIES = [['NONE', 'None of these'], ['CREDIT', 'Financial products / credit'], ['EMPLOYMENT', 'Employment'], ['HOUSING', 'Housing'], ['ISSUES_ELECTIONS_POLITICS', 'Social issues, elections or politics']];
+const OBJECTIVES: Record<AgentPlan['objective'], string> = { awareness: 'Awareness (reach)', traffic: 'Website traffic', leads: 'Lead generation (Instant Form)' };
 const EXAMPLE = 'Use the attached image and run a campaign from 1 December to 10 December with Rs 5,000 total budget, for women aged 25 to 65 in Karnataka, sending them to https://example.com';
 const when = (iso?: string) => (iso ? new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '');
 
@@ -82,7 +83,7 @@ export default function MetaAgentChat({ canCreate }: { canCreate: boolean }) {
   };
 
   const rows: Array<[string, string]> = plan ? [
-    ['Objective', plan.objective === 'leads' ? 'Lead generation (Instant Form)' : 'Website traffic'],
+    ['Objective', OBJECTIVES[plan.objective]],
     ['Budget', `₹${plan.budget.toLocaleString('en-IN')} ${plan.budget_type === 'lifetime' ? 'total' : 'per day'}`],
     ['Dates', `${when(plan.start) || 'Starts when activated'} → ${when(plan.end) || 'no end date'}`],
     ['Audience', `${plan.genders.length === 1 ? (plan.genders[0] === 2 ? 'Women' : 'Men') : 'Everyone'}, ${plan.age_min}–${plan.age_max}, ${plan.regions?.length ? plan.regions.map((r) => r.name).join(', ') : 'all of India'}`],

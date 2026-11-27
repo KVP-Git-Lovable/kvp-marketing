@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mentionedAmounts, toDraft, validatePlan, type AgentPlan, type PlanContext } from '../../supabase/functions/meta-agent/plan';
 import { recommend, toDayStats, type DayStat } from '../../supabase/functions/meta-agent/rules';
-import { budgetChangeProblem, budgetFields, buildTargeting } from '../../supabase/functions/meta-ads-connector/rules';
+import { adsetGoal, budgetChangeProblem, budgetFields, buildTargeting, campaignPayload, creativeLink, ctasFor } from '../../supabase/functions/meta-ads-connector/rules';
 
 const now = Date.parse('2026-11-26T06:00:00Z');
 const plan: AgentPlan = {
@@ -26,6 +26,13 @@ describe('plan validation', () => {
     expect(validatePlan({ ...plan, objective: 'leads', cta: 'SIGN_UP', lead_form_id: '9' }, ctx).join(' ')).toMatch(/lead form/);
     expect(validatePlan({ ...plan, objective: 'leads', cta: 'SIGN_UP', lead_form_id: '9' }, { ...ctx, leadFormIds: ['9'] })).toEqual([]);
   });
+  it('accepts awareness with a website and only its own buttons', () => {
+    const aware: AgentPlan = { ...plan, objective: 'awareness' };
+    expect(validatePlan(aware, ctx)).toEqual([]);
+    expect(validatePlan({ ...aware, website: undefined }, ctx).join(' ')).toMatch(/website/);
+    expect(validatePlan({ ...aware, cta: 'ORDER_NOW' }, ctx).join(' ')).toMatch(/button/);
+    expect(toDraft(aware, { account_id: 'act_1', page_id: '2' }, { media_path: 'connector/u/a.jpg', media_kind: 'image' }, 'NONE')).toMatchObject({ objective: 'awareness', website: 'https://example.com' });
+  });
   it('builds a connector draft with the person\'s category', () => {
     const d = toDraft(plan, { account_id: 'act_1', page_id: '2' }, { media_path: 'connector/u/a.jpg', media_kind: 'image' }, 'NONE');
     expect(d).toMatchObject({ budget: 5000, budget_type: 'lifetime', genders: [2], age_min: 25, categories: [], countries: ['IN'], start: '2026-11-30T18:30:00.000Z' });
@@ -48,6 +55,22 @@ describe('connector targeting and budgets', () => {
     expect(budgetChangeProblem(500, 700, 'daily', limits, undefined, now)).toMatch(/at most 20%/);
     expect(budgetChangeProblem(4900, 5100, 'daily', limits, undefined, now)).toMatch(/limit/);
     expect(budgetChangeProblem(500, 600, 'daily', limits, new Date(now - 3600000).toISOString(), now)).toMatch(/recently/);
+  });
+});
+
+describe('awareness campaigns', () => {
+  it('uses the awareness objective and optimises for reach', () => {
+    expect(campaignPayload('A', [], 'awareness')).toMatchObject({ objective: 'OUTCOME_AWARENESS', status: 'PAUSED' });
+    expect(adsetGoal('awareness', '1')).toEqual({ optimization_goal: 'REACH', promoted_object: { page_id: '1' } });
+    expect(creativeLink('awareness', 'LEARN_MORE', 'https://e.com', undefined).link).toBe('https://e.com');
+    expect(ctasFor('awareness')).not.toContain('SIGN_UP');
+  });
+  it('never pauses or raises the budget on a cost per result', () => {
+    const days = toDayStats([0, 1, 2].map((i) => ({ date_start: `2026-11-2${i}`, spend: '500', impressions: '4000', clicks: '5', frequency: '1.2', inline_link_clicks: '4' })), 'awareness');
+    const [r] = recommend({ status: 'ACTIVE', objective: 'awareness', budget: 500, budgetType: 'daily', targetCostPerResult: 100, days }, now);
+    expect(r.kind).toBe('no_action');
+    expect(r.reason).toMatch(/creative advice only/);
+    expect(r.evidence).not.toHaveProperty('results');
   });
 });
 

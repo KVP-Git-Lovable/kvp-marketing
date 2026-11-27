@@ -62,7 +62,7 @@ export default function MetaAgentManage({ canEdit }: { canEdit: boolean }) {
         </div>
         <Button onClick={analyse} disabled={!!busy}>{busy === 'analyse' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}Analyse campaigns</Button>
       </div>
-      <p className="text-xs text-muted-foreground">Reads the last 7 days of each connector campaign. Nothing changes on Meta until you approve a suggestion. Without a target cost, only creative advice is given.</p>
+      <p className="text-xs text-muted-foreground">Reads the last 7 days of each connector campaign. Nothing changes on Meta until you approve a suggestion. Without a target cost, and for awareness campaigns, only creative advice is given.</p>
       {(error || history.error) && <p role="alert" className="text-sm text-destructive break-words">{error || (history.error as Error).message}</p>}
       {findings && !findings.length && <p className="text-sm text-muted-foreground">There are no prepared connector campaigns to analyse yet.</p>}
       {quiet.length > 0 && (
